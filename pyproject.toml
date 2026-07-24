@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "RBCM-edge"
+version = "0.1.0"
+description = "Retina-inspired boundary-context modulation for generalized edge detection."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Kenda" }]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "matplotlib>=3.7",
+  "scikit-learn>=1.3",
+  "scipy>=1.10",
+  "scikit-image>=0.22",
+  "PyYAML>=6.0",
+  "tqdm>=4.66",
+  "pillow>=10.0",
+  "torch>=2.1",
+  "kornia>=0.7",
+  "thop>=0.1.1",
+  "efficientnet-pytorch>=0.7.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

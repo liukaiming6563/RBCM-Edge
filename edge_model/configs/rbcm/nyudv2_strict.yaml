@@ -1,0 +1,156 @@
+experiment_name: nyudv2_strict_seed4517_final_20260724
+seed: 4517
+deterministic: false
+device: cuda
+
+paths:
+  project_root: .
+  edge_data_root: edge_data/official_rbcm
+  output_root: results/rbcm/training/nyudv2
+
+paper_protocol:
+  name: NYUDv2 RGB 381/414/654 strict protocol
+  train_source_images: 381
+  validation_images: 414
+  test_images: 654
+  pre_generated_augmentation: 24
+  checkpoint_selection: validation ODS only
+  final_test:
+    split: test
+    gt_variant: edge
+    thresholds: 99
+    apply_nms: true
+    nms_low_threshold: 0.02
+    match_tolerance: 0.011
+    restore_original_size: true
+
+dataset:
+  train_dataset: NYUDv2
+  val_dataset: NYUDv2
+  train_split: train
+  val_split: val
+  eval_split: val
+  split_files:
+    train: splits/strict_381_414/train.txt
+    val: splits/strict_381_414/val.txt
+    test: splits/strict_381_414/test.txt
+  # The 24-way PiDiNet/RCF package already contains scale, rotation, and
+  # horizontal-flip augmentation. Keep those images at their native size.
+  input_size: 500
+  native_size_train: true
+  native_size_eval: true
+  random_crop: false
+  preserve_aspect_train: true
+  preserve_aspect_eval: true
+  horizontal_flip: false
+  vertical_flip: false
+  binarize_edges: true
+  gt:
+    train_variant: edge
+    eval_variant: edge
+    loss_weight_variant: none
+    train_mode: binary
+    eval_mode: binary
+    binarize_train_edges: true
+    binarize_eval_edges: true
+    loss_weight_train_variant: none
+    loss_weight_eval_variant: none
+
+loader:
+  batch_size: 1
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: false
+  prefetch_factor: 2
+
+model:
+  name: baseline_host_edge
+  host: hed_lite
+  variant: plain
+  in_channels: 3
+  feature_channels: 48
+  decoder_channels: 64
+  norm: gn
+  gn_groups: 8
+  activation: relu
+
+loss:
+  target_threshold: 0.5
+  dice_weight: 1.0
+  local_weight: 0.24
+  side_weight: 0.18
+  context_weight: 0.08
+  context_dilation: 3
+  context_gamma: 1.0
+  gate_sparsity_weight: 0.0
+  density_weight: 0.002
+  density_target_multiplier: 1.4
+  density_floor: 0.006
+  active_density_weight: 0.0
+  tversky_weight: 0.22
+  tversky_alpha: 0.72
+  tversky_beta: 0.28
+  tversky_gamma: 1.0
+  far_background_weight: 0.03
+  far_background_dilation: 3
+  far_background_gamma: 1.4
+  background_blob_weight: 0.0
+  calibration_weight: 0.0
+  mix_balance_weight: 0.0
+  mix_prior: [0.3, 0.2, 0.5]
+  separation_weight: 0.0
+  hf_residual_weight: 0.0
+  hf_gate_sparsity_weight: 0.0
+  continuity_residual_weight: 0.0
+  continuity_gate_sparsity_weight: 0.0
+  continuity_isolated_weight: 0.0
+  continuity_support_weight: 0.0
+
+train:
+  epochs: 14
+  learning_rate: 0.0001
+  min_learning_rate: 0.000002
+  scheduler: multistep
+  scheduler_t_max_epochs: 14
+  scheduler_milestones: [8, 12]
+  scheduler_gamma: 0.1
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  mixed_precision: true
+  log_interval: 100
+  diagnostic_interval: 100
+  eval_interval: 1
+  save_visual_interval: 9999
+  save_gate_heatmaps: false
+  max_visual_samples: 0
+  metric_mode: fast_gpu
+  fast_metric_thresholds: 99
+  # Validation images are 640x480; 0.011 of their 800-pixel diagonal is 8.8 px.
+  fast_metric_tolerance_pixels: 9
+  apply_nms: true
+  nms_low_threshold: 0.02
+  checkpoint_score:
+    mode: ODS
+  strict_checkpoint_selection:
+    enabled: false
+  save_eval_checkpoints: false
+  early_stop_patience: null
+  early_stop_min_delta: 0.0
+  auto_plot_log: true
+  resumable_mid_epoch: true
+  checkpoint_interval_steps: 500
+  periodic_checkpoint_minutes: 10.0
+  periodic_checkpoint_keep: 3
+  stop_file: results/rbcm/training/nyudv2/nyudv2_strict_seed4517_final_20260724/STOP
+
+eval:
+  save_predictions: false
+  save_visualizations: false
+  save_gate_heatmaps: false
+  max_visual_samples: 0
+  metric_mode: strict
+  thresholds: 99
+  match_tolerance: 0.011
+  apply_nms: true
+  nms_low_threshold: 0.02
+  restore_original_size: true

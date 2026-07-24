@@ -1,0 +1,153 @@
+experiment_name: rbcm_multicue
+seed: 4517
+deterministic: false
+device: cuda
+paths:
+  project_root: .
+  edge_data_root: edge_data/official_rbcm
+  output_root: results/rbcm/training/multicue
+dataset:
+  train_dataset: Multicue
+  val_dataset: Multicue
+  train_split: train
+  val_split: val
+  eval_split: test
+  input_size: 500
+  random_crop: true
+  preserve_aspect_train: true
+  preserve_aspect_eval: true
+  horizontal_flip: true
+  vertical_flip: false
+  binarize_edges: true
+  gt:
+    train_variant: edge
+    eval_variant: soft_vote
+    loss_weight_variant: none
+    train_mode: binary
+    eval_mode: soft
+    binarize_train_edges: true
+    binarize_eval_edges: false
+    loss_weight_train_variant: multicue_ignore_weight
+    loss_weight_eval_variant: none
+loader:
+  batch_size: 2
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+model:
+  name: baseline_host_edge
+  host: hed_lite
+  variant: plain
+  in_channels: 3
+  feature_channels: 48
+  decoder_channels: 64
+  norm: gn
+  gn_groups: 8
+  activation: relu
+loss:
+  target_threshold: 0.5
+  dice_weight: 1.0
+  local_weight: 0.24
+  side_weight: 0.18
+  context_weight: 0.08
+  context_dilation: 3
+  context_gamma: 1.0
+  gate_sparsity_weight: 0.0
+  density_weight: 0.002
+  density_target_multiplier: 1.4
+  density_floor: 0.006
+  active_density_weight: 0.0
+  tversky_weight: 0.22
+  tversky_alpha: 0.72
+  tversky_beta: 0.28
+  tversky_gamma: 1.0
+  far_background_weight: 0.03
+  far_background_dilation: 3
+  far_background_gamma: 1.4
+  background_blob_weight: 0.0
+  calibration_weight: 0.0
+  mix_balance_weight: 0.0
+  mix_prior:
+  - 0.3
+  - 0.2
+  - 0.5
+  separation_weight: 0.0
+  hf_residual_weight: 0.0
+  hf_gate_sparsity_weight: 0.0
+  continuity_residual_weight: 0.0
+  continuity_gate_sparsity_weight: 0.0
+  continuity_isolated_weight: 0.0
+  continuity_support_weight: 0.0
+train:
+  epochs: 14
+  learning_rate: 0.0001
+  min_learning_rate: 2.0e-06
+  scheduler: multistep
+  scheduler_t_max_epochs: 14
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  mixed_precision: true
+  log_interval: 20
+  eval_interval: 1
+  periodic_checkpoint_minutes: 60.0
+  periodic_checkpoint_keep: 2
+  save_visual_interval: 9999
+  save_gate_heatmaps: false
+  max_visual_samples: 0
+  metric_mode: fast_gpu
+  fast_metric_thresholds: 49
+  fast_metric_tolerance_pixels: 2
+  apply_nms: true
+  nms_low_threshold: 0.02
+  early_stop_patience: null
+  early_stop_min_delta: 0.00015
+  auto_plot_log: true
+  checkpoint_score:
+    mode: density_aware
+    ods_weight: 1.0
+    ois_weight: 0.08
+    ap_weight: 0.2
+    density_metric: density_ratio_at_ODS
+    density_target: 1.2
+    density_penalty: 0.025
+    density_power: 1.1
+    min_density_ratio: 0.15
+    low_density_penalty: 0.015
+  strict_checkpoint_selection:
+    enabled: true
+    mode: strict_subset
+    metric_mode: fast_gpu
+    max_samples: 128
+    batch_size: 2
+    num_workers: 4
+    pin_memory: true
+    apply_nms: true
+    nms_low_threshold: 0.02
+    score:
+      mode: density_aware
+      ods_weight: 1.0
+      ois_weight: 0.08
+      ap_weight: 0.2
+      density_metric: density_ratio_at_ODS
+      density_target: 1.2
+      density_penalty: 0.025
+      density_power: 1.1
+      min_density_ratio: 0.15
+      low_density_penalty: 0.015
+    replace_best: true
+  save_eval_checkpoints: false
+  scheduler_milestones:
+  - 8
+  - 12
+  scheduler_gamma: 0.1
+eval:
+  save_predictions: true
+  save_visualizations: false
+  save_gate_heatmaps: false
+  max_visual_samples: 0
+  metric_mode: fast_gpu
+  fast_metric_thresholds: 49
+  fast_metric_tolerance_pixels: 2
+  apply_nms: false
+  nms_low_threshold: 0.02

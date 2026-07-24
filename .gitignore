@@ -1,0 +1,67 @@
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.local_pkgs/
+
+# Local data. MEA_data contains large Kilosort outputs and stimulus videos.
+/MEA_data/
+/Image_data/
+/edge_data/
+/data/
+/outputs/
+/MEA_outputs/
+/edge_outputs/
+/results/
+/paper_assets/
+/weights/
+/release/
+/doc/
+/docs/manuscript/
+/checkpoints/
+/logs/
+/runs/
+/wandb/
+
+# Baseline local clones, vendored helper deps, and heavyweight artifacts.
+edge_model/baselines/external/
+edge_model/baselines/weights/
+edge_model/baselines/vendor/
+weight-tmp/
+
+# Model artifacts and generated figures
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.npz
+*.npy
+*.h5
+*.mat
+*.mp4
+*.avi
+*.log
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local backups not intended for GitHub
+/backup/
+/tmp/
+/docs/备份/
+
+# Local workspace instructions
+/AGENTS.md
