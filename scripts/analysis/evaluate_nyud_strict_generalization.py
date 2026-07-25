@@ -116,6 +116,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--datasets", nargs="+", default=list(DATASETS))
+    parser.add_argument("--thresholds", type=int, default=99)
+    parser.add_argument("--official-dir-name", default="official")
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true")
@@ -223,14 +225,19 @@ def preflight(args: argparse.Namespace, selected: list[DatasetSpec]) -> Path:
                 "count": counts[spec.name],
                 "match_tolerance": spec.match_tolerance,
                 "gt_threshold": spec.gt_threshold,
-                "thresholds": 99,
+                "thresholds": args.thresholds,
                 "apply_nms": True,
                 "metric_backend": "dilation",
             }
             for spec in selected
         },
     }
-    manifest_path = out / "protocol_manifest.json"
+    manifest_name = (
+        "protocol_manifest.json"
+        if args.thresholds == 99 and args.official_dir_name == "official"
+        else f"protocol_manifest_{args.official_dir_name}_{args.thresholds}.json"
+    )
+    manifest_path = out / manifest_name
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return fixed_path
 
@@ -301,7 +308,7 @@ def apply_dataset(
         "--num-workers",
         str(args.num_workers),
         "--thresholds",
-        "99",
+        str(args.thresholds),
         "--match-tolerance",
         str(spec.match_tolerance),
         "--gt-threshold",
@@ -331,7 +338,7 @@ def evaluate_mode(
     apply_dir: Path,
     mode: str,
 ) -> Path:
-    out = run_root(args) / "official" / spec.name / mode
+    out = run_root(args) / args.official_dir_name / spec.name / mode
     command = [
         args.python,
         str(ROOT / "scripts" / "baselines" / "evaluate_official_edges.py"),
@@ -347,7 +354,7 @@ def evaluate_mode(
         "--metric-backend",
         "dilation",
         "--thresholds",
-        "99",
+        str(args.thresholds),
         "--match-tolerance",
         str(spec.match_tolerance),
         "--gt-threshold",
@@ -372,7 +379,13 @@ def build_summary(args: argparse.Namespace, selected: list[DatasetSpec]) -> Path
     rows: list[dict[str, Any]] = []
     for spec in selected:
         for mode in MODES:
-            path = run_root(args) / "official" / spec.name / mode / "summary.json"
+            path = (
+                run_root(args)
+                / args.official_dir_name
+                / spec.name
+                / mode
+                / "summary.json"
+            )
             if not path.exists():
                 continue
             payload = load_json(path)
@@ -385,11 +398,16 @@ def build_summary(args: argparse.Namespace, selected: list[DatasetSpec]) -> Path
                     "n_matched": payload["n_matched"],
                     "match_tolerance": payload["match_tolerance"],
                     "gt_threshold": payload["gt_threshold"],
-                    "thresholds": 99,
+                    "thresholds": args.thresholds,
                     **metrics,
                 }
             )
-    out = run_root(args) / "generalization_summary.csv"
+    summary_name = (
+        "generalization_summary.csv"
+        if args.thresholds == 99 and args.official_dir_name == "official"
+        else f"generalization_summary_{args.official_dir_name}_{args.thresholds}.csv"
+    )
+    out = run_root(args) / summary_name
     if rows:
         write_csv(out, rows)
     return out

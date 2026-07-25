@@ -65,7 +65,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--multicue-root", type=Path, default=PROJECT_ROOT / "edge_data" / "official_rbcm" / "Multicue")
     parser.add_argument("--nyud-root", type=Path, default=PROJECT_ROOT / "edge_data" / "official_rbcm" / "NYUDv2")
     parser.add_argument("--uded-root", type=Path, default=PROJECT_ROOT / "edge_data" / "official_repro" / "UDED")
-    parser.add_argument("--orientation", choices=["auto", "as_is", "inverted"], default="auto")
+    parser.add_argument(
+        "--orientation",
+        choices=["auto", "as_is", "inverted"],
+        default="as_is",
+        help=(
+            "Prediction polarity. Paper-facing evaluation must use a fixed value "
+            "(normally as_is). 'auto' compares both polarities on the target GT "
+            "and is diagnostic only."
+        ),
+    )
     parser.add_argument("--apply-nms", action="store_true")
     parser.add_argument("--nms-low-threshold", type=float, default=0.02)
     parser.add_argument("--device", default="cuda")
@@ -479,6 +488,7 @@ def main() -> None:
         "match_tolerance": args.match_tolerance,
         "metric_backend": args.metric_backend,
         "gt_threshold": args.gt_threshold,
+        "requested_orientation": args.orientation,
         "selected_orientation": best["orientation"],
         "selected": best,
         "all_orientations": summaries,

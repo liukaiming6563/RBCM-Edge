@@ -6,7 +6,7 @@ PyCharm usage:
 
 Command-line usage:
 ```powershell
-python edge_model\\train.py --config edge_model\\configs\\server\\final_rbcm_vnext_lrsa_nohf_x512_processed.yaml --epochs 2
+python edge_model\\train.py --config edge_model\\configs\\rbcm\\nyudv2_strict.yaml
 ```
 """
 
@@ -54,7 +54,7 @@ from rbcm_edge.models.losses import EdgeDetectionLoss
 STOP_REQUESTED = False
 
 DEFAULT_ARGS = {
-    "config": PROJECT_ROOT / "edge_model" / "configs" / "server" / "final_rbcm_vnext_lrsa_nohf_x512_processed.yaml",
+    "config": PROJECT_ROOT / "edge_model" / "configs" / "rbcm" / "nyudv2_strict.yaml",
     "experiment_name": None,
     "train_dataset": None,
     "val_dataset": None,

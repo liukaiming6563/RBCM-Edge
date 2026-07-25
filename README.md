@@ -18,6 +18,12 @@ datasets, checkpoints, and generated results are distributed separately.
 - `src/rbcm_edge`: importable H-RBCM implementation;
 - `scripts`: reproducibility, integrity, and pipeline entry points.
 
+The Python evaluator is a shared near-official implementation with original
+image sizes, NMS, threshold sweeping, and target-specific localization
+tolerance. Its dilation matcher is not the exact BSDS benchmark Matlab
+bipartite matcher. Use one backend consistently within a comparison and label
+the protocol explicitly in reported tables.
+
 ## External packages
 
 Place the separately distributed directories at the repository root:
