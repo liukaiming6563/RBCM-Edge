@@ -15,6 +15,7 @@
 - `edge_model`：H-RBCM 训练、推理、校准和评估；
 - `src/rbcm_edge`：可导入的 H-RBCM 实现；
 - `scripts`：复现、完整性检查和流水线入口。
+- `docs/results`：带协议标签的唯一正式论文数字索引。
 
 Python 评估器采用统一的近官方流程：恢复原始尺寸、执行 NMS、扫描固定
 阈值，并使用目标数据集特定的空间容差。其中 dilation matcher 不是
@@ -45,6 +46,8 @@ pip install opencv-python-headless
 H-RBCM 训练一个共享 HED-lite 中心边缘 anchor，并得到
 `plain_identity`、`main_surround`、`no_surround`、`conv_control`
 四种严格匹配输出。校准候选只在验证集选择，随后冻结。
+正式数字入口为 `docs/results/formal_result_index.csv`；每行同时记录协议
+角色和原始证据路径。
 
 边缘检测复现命令与严格 NYUDv2 五目标评估命令见英文 README。
 

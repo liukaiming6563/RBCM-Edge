@@ -17,6 +17,7 @@ datasets, checkpoints, and generated results are distributed separately.
 - `edge_model`: H-RBCM training, inference, calibration, and evaluation;
 - `src/rbcm_edge`: importable H-RBCM implementation;
 - `scripts`: reproducibility, integrity, and pipeline entry points.
+- `docs/results`: canonical machine-readable paper scores with protocol labels.
 
 The Python evaluator is a shared near-official implementation with original
 image sizes, NMS, threshold sweeping, and target-specific localization
@@ -50,6 +51,8 @@ pip install opencv-python-headless
 H-RBCM trains one HED-lite center-edge anchor and derives four matched outputs:
 `plain_identity`, `main_surround`, `no_surround`, and `conv_control`.
 Calibration candidates are selected on validation data and then frozen.
+The formal score index is `docs/results/formal_result_index.csv`; it records
+the protocol role and evidence source beside every score.
 
 ```bash
 python scripts/release/smoke_paper_release.py --checkpoint-root pretrained
