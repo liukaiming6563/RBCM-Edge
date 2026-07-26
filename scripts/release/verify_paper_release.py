@@ -53,6 +53,10 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_vcs_metadata(path: Path, root: Path) -> bool:
+    return ".git" in path.relative_to(root).parts
+
+
 def verify_sha_manifest(root: Path) -> int:
     manifest = root / "MANIFEST_SHA256.csv"
     if not manifest.is_file():
@@ -74,7 +78,7 @@ def verify_sha_manifest(root: Path) -> int:
     actual = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_file() and path != manifest
+        if path.is_file() and path != manifest and not is_vcs_metadata(path, root)
     }
     if actual != indexed:
         missing = sorted(indexed - actual)
@@ -150,6 +154,81 @@ def verify_mea_data(package: Path, full_index: bool) -> tuple[int, int]:
     return indexed_files, indexed_bytes
 
 
+def verify_strict_result_metadata(code_root: Path) -> None:
+    required_configs = (
+        code_root / "edge_model/configs/rbcm/multicue_strict.yaml",
+        code_root / "edge_model/configs/rbcm/nyudv2_strict.yaml",
+    )
+    for path in required_configs:
+        if not path.is_file():
+            raise FileNotFoundError(path)
+
+    strict_specs = {
+        "multicue": code_root / "docs/results/strict/multicue/formal_summary.json",
+        "nyudv2": code_root / "docs/results/strict/nyudv2/formal_summary.json",
+    }
+    for dataset, path in strict_specs.items():
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if dataset == "multicue":
+            modes = set(payload.get("modes", {}))
+        else:
+            modes = {"plain_identity", *payload.get("selected", {}).keys()}
+        expected_modes = {
+            "plain_identity",
+            "main_surround",
+            "no_surround",
+            "conv_control",
+        }
+        if modes != expected_modes:
+            raise RuntimeError(
+                f"{dataset} strict summary modes differ: {sorted(modes)}"
+            )
+
+    with (code_root / "docs/results/formal_result_index.csv").open(
+        newline="", encoding="utf-8-sig"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+    for dataset in ("Multicue", "NYUDv2"):
+        selected = [
+            row for row in rows
+            if row["training_source"] == dataset
+            and row["scope"] == "same_domain_strict"
+        ]
+        if len(selected) != 4 or any(
+            row["independent_test"].lower() != "true" for row in selected
+        ):
+            raise RuntimeError(
+                f"Expected four independent strict rows for {dataset}, "
+                f"found {len(selected)}"
+            )
+    if any(
+        row["training_source"] == "Multicue"
+        and "descriptive" in row["scope"].lower()
+        for row in rows
+    ):
+        raise RuntimeError("Archival MultiCue descriptive rows leaked into formal index")
+
+    # Construct the markers at runtime so the verifier does not embed and
+    # subsequently flag the exact private path strings in its own public copy.
+    forbidden_markers = (
+        "/workspace/" + "RBCM-Edge",
+        "D:\\" + "study\\project\\RBCM-Edge",
+    )
+    for path in code_root.rglob("*"):
+        if (
+            path.is_file()
+            and not is_vcs_metadata(path, code_root)
+            and path.suffix.lower() in {
+            ".py", ".yaml", ".yml", ".json", ".csv", ".md", ".txt"
+            }
+        ):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            if any(marker in text for marker in forbidden_markers):
+                raise RuntimeError(f"Machine-specific path leaked into public source: {path}")
+
+
 def main() -> None:
     args = parse_args()
     code_root = args.code_root.resolve()
@@ -182,10 +261,36 @@ def main() -> None:
             raise RuntimeError(f"Historical MEA directory in source package: {name}")
 
     code_files = verify_sha_manifest(code_root)
+    verify_strict_result_metadata(code_root)
     checkpoint_files = verify_sha_manifest(checkpoint_package)
-    checkpoint_paths = sorted(checkpoint_package.rglob("*.pt"))
-    if len(checkpoint_paths) != 6:
-        raise RuntimeError(f"Expected 6 selected checkpoints, found {len(checkpoint_paths)}")
+    expected_checkpoints = {
+        "pretrained/biped/main/best.pt",
+        "pretrained/biped/split0/best.pt",
+        "pretrained/biped/split1/best.pt",
+        "pretrained/biped/split2/best.pt",
+        "pretrained/multicue_strict/best.pt",
+        "pretrained/nyudv2_strict/best.pt",
+    }
+    checkpoint_paths = {
+        path.relative_to(checkpoint_package).as_posix()
+        for path in checkpoint_package.rglob("*.pt")
+    }
+    if checkpoint_paths != expected_checkpoints:
+        raise RuntimeError(
+            "Selected checkpoint membership differs: "
+            f"missing={sorted(expected_checkpoints - checkpoint_paths)}, "
+            f"extra={sorted(checkpoint_paths - expected_checkpoints)}"
+        )
+    for relative in (
+        "pretrained/multicue_strict/CANDIDATES_FROZEN.sha256",
+        "pretrained/multicue_strict/protocol_manifest.json",
+        "pretrained/multicue_strict/formal_summary.json",
+        "pretrained/multicue_strict/checkpoint_provenance.json",
+        "pretrained/nyudv2_strict/protocol_manifest.json",
+        "pretrained/nyudv2_strict/formal_summary.json",
+    ):
+        if not (checkpoint_package / relative).is_file():
+            raise FileNotFoundError(checkpoint_package / relative)
 
     data_files, data_bytes, protocol_files = verify_dataset(
         dataset_package,

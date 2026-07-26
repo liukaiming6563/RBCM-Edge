@@ -1,0 +1,32 @@
+{
+  "protocol": "MultiCue fixed source-disjoint 68/12/20 confirmation",
+  "seed": 4517,
+  "selection_rule": "ascending SHA256(seed:source_id); first 12 of original 80 are validation",
+  "source_train": "edge_data/official_rbcm/Multicue/splits/train.txt",
+  "source_test": "edge_data/official_rbcm/Multicue/splits/test.txt",
+  "source_hashes": {
+    "train": "3c680a59e30787e2bd72721e38e370ba5088b1b087e1e1cf7fc8cb4bc7741f25",
+    "test": "d192dc1061ee319724c3cb0205a8f80f40610b75cbe0eeb4176230dcc9712da5"
+  },
+  "counts": {
+    "train_sources": 68,
+    "train_rows": 6528,
+    "val_sources": 12,
+    "val_rows": 12,
+    "test_sources": 20,
+    "test_rows": 20,
+    "descendants_per_training_source": 96
+  },
+  "split_hashes": {
+    "train": "e8627d0e1246d7137dea30a1c9299c17aa2dcf8bda9c2feeeed7fab92fd0e893",
+    "val": "176efeb3ce9036292ad65fd789fca4ee1549f39b31c16dcd4b20246f393e833f",
+    "test": "d192dc1061ee319724c3cb0205a8f80f40610b75cbe0eeb4176230dcc9712da5"
+  },
+  "source_assignment_sha256": "95dfd74f72cb7ac673f642b87a73e4b5858d108500553ec8219d1ac1ddb229fb",
+  "test_is_original_report_split": true,
+  "source_overlap": {
+    "train_val": [],
+    "train_test": [],
+    "val_test": []
+  }
+}

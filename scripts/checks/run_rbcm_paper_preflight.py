@@ -26,9 +26,15 @@ def main() -> int:
     args = parse_args()
     if not args.check_data:
         raise SystemExit("This preflight currently requires --check-data.")
+    config_name = args.config.name.lower()
+    audit_name = (
+        "audit_multicue_strict_protocol.py"
+        if "multicue" in config_name
+        else "audit_nyud_strict_protocol.py"
+    )
     command = [
         sys.executable,
-        str(PROJECT_ROOT / "scripts" / "checks" / "audit_nyud_strict_protocol.py"),
+        str(PROJECT_ROOT / "scripts" / "checks" / audit_name),
         "--config",
         str(args.config),
     ]

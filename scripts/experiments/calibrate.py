@@ -110,6 +110,14 @@ def parse_args() -> argparse.Namespace:
         default="default",
     )
     parser.add_argument("--save-test-predictions", action="store_true")
+    parser.add_argument(
+        "--selection-only",
+        action="store_true",
+        help=(
+            "Select and save candidates using validation data only. The test "
+            "dataset is not constructed or read in this mode."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -661,6 +669,8 @@ def save_predictions(
 
 def main() -> None:
     args = parse_args()
+    if args.selection_only and args.save_test_predictions:
+        raise ValueError("--save-test-predictions cannot be used with --selection-only")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device(args.device if args.device == "cuda" and torch.cuda.is_available() else "cpu")
     checkpoint = load_checkpoint(args.checkpoint, map_location=device)
@@ -677,14 +687,16 @@ def main() -> None:
         device=device,
     )
     print(f"collected val samples: {len(val_samples)}", flush=True)
-    test_samples = collect_samples(
-        model=model,
-        config=config,
-        dataset_name=dataset_name,
-        split=args.test_split,
-        device=device,
-    )
-    print(f"collected test samples: {len(test_samples)}", flush=True)
+    test_samples: list[dict[str, np.ndarray | str]] = []
+    if not args.selection_only:
+        test_samples = collect_samples(
+            model=model,
+            config=config,
+            dataset_name=dataset_name,
+            split=args.test_split,
+            device=device,
+        )
+        print(f"collected test samples: {len(test_samples)}", flush=True)
 
     baseline_val = metric_for_probs(
         [sample["prob"] for sample in val_samples],  # type: ignore[list-item]
@@ -696,21 +708,22 @@ def main() -> None:
         device=args.device,
         gt_threshold=args.gt_threshold,
     )
-    baseline_test = metric_for_probs(
-        [sample["prob"] for sample in test_samples],  # type: ignore[list-item]
-        [sample["target"] for sample in test_samples],  # type: ignore[list-item]
-        thresholds=args.thresholds,
-        match_tolerance=args.match_tolerance,
-        nms_low_threshold=args.nms_low_threshold,
-        apply_nms=True,
-        device=args.device,
-        gt_threshold=args.gt_threshold,
-    )
-
     summary_rows: list[dict[str, float | str]] = [
         {"mode": "plain_identity", "split": "val", **baseline_val},
-        {"mode": "plain_identity", "split": "test", **baseline_test},
     ]
+    baseline_test: dict[str, float] | None = None
+    if not args.selection_only:
+        baseline_test = metric_for_probs(
+            [sample["prob"] for sample in test_samples],  # type: ignore[list-item]
+            [sample["target"] for sample in test_samples],  # type: ignore[list-item]
+            thresholds=args.thresholds,
+            match_tolerance=args.match_tolerance,
+            nms_low_threshold=args.nms_low_threshold,
+            apply_nms=True,
+            device=args.device,
+            gt_threshold=args.gt_threshold,
+        )
+        summary_rows.append({"mode": "plain_identity", "split": "test", **baseline_test})
     selected: dict[str, dict[str, object]] = {}
     for mode in list(args.modes):
         print(f"searching {mode}", flush=True)
@@ -719,24 +732,35 @@ def main() -> None:
         # Full-resolution ring states can occupy several gigabytes.  They are
         # no longer needed after validation has selected the fixed candidate.
         clear_candidate_caches(val_samples)
-        test_row = evaluate_candidate(test_samples, best, args, apply_nms=True)
+        test_row = None
+        if not args.selection_only:
+            test_row = evaluate_candidate(test_samples, best, args, apply_nms=True)
         selected[mode] = {"candidate": asdict(best), "val": best_val, "test": test_row}
         summary_rows.append({"mode": mode, "split": "val", **best_val})
-        summary_rows.append({"mode": mode, "split": "test", **test_row})
-        print(
-            f"{mode}: val ODS={float(best_val['ODS']):.4f}, "
-            f"test ODS={float(test_row['ODS']):.4f}, AP={float(test_row['AP']):.4f}",
-            flush=True,
-        )
-        if args.save_test_predictions:
+        if test_row is not None:
+            summary_rows.append({"mode": mode, "split": "test", **test_row})
+            print(
+                f"{mode}: val ODS={float(best_val['ODS']):.4f}, "
+                f"test ODS={float(test_row['ODS']):.4f}, AP={float(test_row['AP']):.4f}",
+                flush=True,
+            )
+        else:
+            print(
+                f"{mode}: val ODS={float(best_val['ODS']):.4f}, "
+                f"AP={float(best_val['AP']):.4f}; test not read",
+                flush=True,
+            )
+        if args.save_test_predictions and test_row is not None:
             save_predictions(test_samples, best, args.output_dir / "predictions" / mode)
-        clear_candidate_caches(test_samples)
+        if test_samples:
+            clear_candidate_caches(test_samples)
 
     write_csv(args.output_dir / "summary.csv", summary_rows)
     report = {
         "dataset_name": dataset_name,
+        "selection_only": bool(args.selection_only),
         "val_split": args.val_split,
-        "test_split": args.test_split,
+        "test_split": None if args.selection_only else args.test_split,
         "checkpoint": str(args.checkpoint),
         "config": str(args.config),
         "val_count": len(val_samples),

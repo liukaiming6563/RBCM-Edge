@@ -1,0 +1,186 @@
+experiment_name: hed_lite_anchor_multicue_strict_seed4517
+seed: 4517
+deterministic: false
+device: cuda
+
+paths:
+  project_root: .
+  edge_data_root: edge_data/official_rbcm
+  output_root: results/rbcm/training/multicue
+
+paper_protocol:
+  name: MultiCue fixed source-disjoint 68/12/20 confirmation
+  source_images: 100
+  train_source_images: 68
+  validation_source_images: 12
+  test_images: 20
+  pre_generated_descendants_per_train_source: 96
+  checkpoint_selection: validation ODS only
+  calibration_selection: validation only; test remains unopened until candidates are frozen
+  final_test:
+    split: test
+    gt_variant: soft_vote
+    gt_threshold: 0.3
+    thresholds: 99
+    apply_nms: true
+    nms_low_threshold: 0.02
+    match_tolerance: 0.0075
+    restore_original_size: true
+
+dataset:
+  train_dataset: Multicue
+  val_dataset: Multicue
+  train_split: train
+  val_split: val
+  eval_split: val
+  split_files:
+    train: splits/strict_68_12_20/train.txt
+    val: splits/strict_68_12_20/val.txt
+    test: splits/strict_68_12_20/test.txt
+  input_size: 500
+  # Keep the established H-RBCM training transform fixed. Source-level split
+  # grouping prevents every pre-generated descendant from crossing partitions.
+  random_crop: true
+  preserve_aspect_train: true
+  preserve_aspect_eval: true
+  horizontal_flip: true
+  vertical_flip: false
+  binarize_edges: true
+  gt:
+    train_variant: edge
+    eval_variant: soft_vote
+    loss_weight_variant: none
+    train_mode: binary
+    eval_mode: soft
+    binarize_train_edges: true
+    binarize_eval_edges: false
+    loss_weight_train_variant: multicue_ignore_weight
+    loss_weight_eval_variant: none
+
+loader:
+  batch_size: 2
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+
+model:
+  name: baseline_host_edge
+  host: hed_lite
+  variant: plain
+  in_channels: 3
+  feature_channels: 48
+  decoder_channels: 64
+  rbcm_reduction: 2
+  norm: gn
+  gn_groups: 8
+  activation: relu
+  ring_token_extractor:
+    directions: 8
+    compute_stride: 4
+    token_channels: 24
+    kernel_size: 5
+    sigma: 1.6
+    sector_group_sigma_angle: 0.35
+    orientation_temperature: 0.25
+    rings:
+    - [3, 7]
+    - [7, 15]
+    - [15, 31]
+  surround_attention:
+    query_channels: 24
+    value_channels: 24
+  modulation:
+    gate_temperature: 1.5
+    alpha_init: 0.035
+    alpha_max: 0.18
+    gate_bias_init: -2.6
+    mix_bias_init: [-0.05, -0.18, 0.28]
+    interaction_bottleneck_channels: 160
+    interaction_terms: 8
+    anchor_alpha_init: 0.065
+    anchor_alpha_max: 0.3
+    residual_alpha_init: 0.015
+    residual_alpha_max: 0.18
+    residual_gate_bias_init: -3.0
+
+loss:
+  target_threshold: 0.5
+  dice_weight: 1.0
+  local_weight: 0.24
+  side_weight: 0.18
+  context_weight: 0.08
+  context_dilation: 3
+  context_gamma: 1.0
+  gate_sparsity_weight: 0.00004
+  density_weight: 0.002
+  density_target_multiplier: 1.4
+  density_floor: 0.006
+  active_density_weight: 0.0
+  tversky_weight: 0.22
+  tversky_alpha: 0.72
+  tversky_beta: 0.28
+  tversky_gamma: 1.0
+  far_background_weight: 0.03
+  far_background_dilation: 3
+  far_background_gamma: 1.4
+  background_blob_weight: 0.0
+  calibration_weight: 0.0
+  mix_balance_weight: 0.0004
+  mix_prior: [0.3, 0.2, 0.5]
+  separation_weight: 0.0
+  hf_residual_weight: 0.0
+  hf_gate_sparsity_weight: 0.0
+  continuity_residual_weight: 0.0
+  continuity_gate_sparsity_weight: 0.0
+  continuity_isolated_weight: 0.0
+  continuity_support_weight: 0.0
+
+train:
+  epochs: 14
+  learning_rate: 0.0001
+  min_learning_rate: 0.000002
+  scheduler: multistep
+  scheduler_t_max_epochs: 14
+  scheduler_milestones: [8, 12]
+  scheduler_gamma: 0.1
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  mixed_precision: true
+  log_interval: 20
+  diagnostic_interval: 100
+  eval_interval: 1
+  save_visual_interval: 9999
+  save_gate_heatmaps: false
+  max_visual_samples: 0
+  metric_mode: fast_gpu
+  fast_metric_thresholds: 99
+  fast_metric_tolerance_pixels: 4
+  apply_nms: true
+  nms_low_threshold: 0.02
+  checkpoint_score:
+    mode: ODS
+  strict_checkpoint_selection:
+    enabled: false
+  save_eval_checkpoints: false
+  early_stop_patience: null
+  early_stop_min_delta: 0.0
+  auto_plot_log: true
+  resumable_mid_epoch: true
+  checkpoint_interval_steps: 500
+  periodic_checkpoint_minutes: 60.0
+  periodic_checkpoint_keep: 3
+  stop_file: results/rbcm/training/multicue/multicue_strict_seed4517/STOP
+
+eval:
+  save_predictions: false
+  save_visualizations: false
+  save_gate_heatmaps: false
+  max_visual_samples: 0
+  metric_mode: strict
+  thresholds: 99
+  match_tolerance: 0.0075
+  gt_threshold: 0.3
+  apply_nms: true
+  nms_low_threshold: 0.02
+  restore_original_size: true

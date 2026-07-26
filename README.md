@@ -55,7 +55,8 @@ The formal score index is `docs/results/formal_result_index.csv`; it records
 the protocol role and evidence source beside every score.
 
 ```bash
-python scripts/release/smoke_paper_release.py --checkpoint-root pretrained
+python scripts/release/smoke_paper_release.py   --checkpoint-root pretrained --dataset all
+python scripts/checks/audit_multicue_strict_protocol.py   --config edge_model/configs/rbcm/multicue_strict.yaml
 python scripts/checks/audit_nyud_strict_protocol.py   --config edge_model/configs/rbcm/nyudv2_strict.yaml
 python scripts/analysis/evaluate_nyud_strict_generalization.py   --config edge_model/configs/rbcm/nyudv2_strict.yaml   --checkpoint pretrained/nyudv2_strict/best.pt   --formal-summary pretrained/nyudv2_strict/formal_summary.json   --run-tag nyudv2_strict_reproduction   --datasets BIPED Multicue NYUDv2 BSDS500 UDED   --device cuda --batch-size 1 --num-workers 2
 ```

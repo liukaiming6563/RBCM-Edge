@@ -49,9 +49,16 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_CHECKPOINT_ROOT,
     )
     parser.add_argument(
+        "--dataset",
+        choices=("all", "multicue", "nyudv2"),
+        default="all",
+        help="Selected strict checkpoint package to smoke-test.",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
-        default=ROOT / "edge_model/configs/rbcm/nyudv2_strict.yaml",
+        default=None,
+        help="Optional config override. Only valid with one selected dataset.",
     )
     return parser.parse_args()
 
@@ -74,26 +81,37 @@ def load_candidate(path: Path, mode: str) -> Candidate:
     raise RuntimeError(f"No validation candidate for {mode} in {path}")
 
 
-def main() -> None:
-    args = parse_args()
-    mea_scripts = sorted((ROOT / "MEA_analysis").glob("*.py")) + sorted(
-        (ROOT / "MEA_model").glob("*/plot_*.py")
+def smoke_checkpoint(
+    checkpoint_root: Path,
+    dataset: str,
+    config_override: Path | None,
+) -> str:
+    package_name = f"{dataset}_strict"
+    checkpoint = checkpoint_root / package_name / "best.pt"
+    candidate_names = (
+        ("calibration_candidates.csv", "fixed_candidates.csv")
+        if dataset == "multicue"
+        else ("fixed_candidates.csv", "calibration_candidates.csv")
     )
-    if len(mea_scripts) < 17:
-        raise RuntimeError(
-            f"Incomplete formal MEA source set: found {len(mea_scripts)} scripts"
-        )
-    for script in mea_scripts:
-        compile(script.read_text(encoding="utf-8"), str(script), "exec")
-
-    checkpoint = args.checkpoint_root / "nyudv2_strict/best.pt"
-    candidates = args.checkpoint_root / "nyudv2_strict/fixed_candidates.csv"
+    candidates = next(
+        (
+            checkpoint_root / package_name / name
+            for name in candidate_names
+            if (checkpoint_root / package_name / name).is_file()
+        ),
+        checkpoint_root / package_name / candidate_names[0],
+    )
     if not checkpoint.exists() or not candidates.exists():
         raise FileNotFoundError(
-            "Extract RBCM-Edge-Checkpoints so pretrained/nyudv2_strict exists."
+            f"Extract RBCM-Edge-Checkpoints so pretrained/{package_name} exists."
         )
 
-    config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
+    config_path = (
+        config_override
+        if config_override is not None
+        else ROOT / f"edge_model/configs/rbcm/{dataset}_strict.yaml"
+    )
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     model = build_model(config)
     payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
     model.load_state_dict(payload["model"], strict=True)
@@ -130,11 +148,37 @@ def main() -> None:
         raise RuntimeError("Non-finite or shape-changing RBCM calibration output")
 
     params = sum(parameter.numel() for parameter in model.parameters())
+    return (
+        f"dataset={dataset} "
+        f"checkpoint_epoch={payload.get('epoch')} "
+        f"params={params} output_shape={probability.shape}"
+    )
+
+
+def main() -> None:
+    args = parse_args()
+    if args.config is not None and args.dataset == "all":
+        raise ValueError("--config requires --dataset multicue or --dataset nyudv2")
+
+    mea_scripts = sorted((ROOT / "MEA_analysis").glob("*.py")) + sorted(
+        (ROOT / "MEA_model").glob("*/plot_*.py")
+    )
+    if len(mea_scripts) < 17:
+        raise RuntimeError(
+            f"Incomplete formal MEA source set: found {len(mea_scripts)} scripts"
+        )
+    for script in mea_scripts:
+        compile(script.read_text(encoding="utf-8"), str(script), "exec")
+
+    datasets = ("multicue", "nyudv2") if args.dataset == "all" else (args.dataset,)
+    reports = [
+        smoke_checkpoint(args.checkpoint_root, dataset, args.config)
+        for dataset in datasets
+    ]
     print(
         "release_smoke=PASS "
-        f"checkpoint_epoch={payload.get('epoch')} "
-        f"params={params} output_shape={probability.shape} "
-        f"mea_scripts={len(mea_scripts)}"
+        f"mea_scripts={len(mea_scripts)} "
+        + " | ".join(reports)
     )
 
 
