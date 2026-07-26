@@ -14,20 +14,50 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PRIVATE_LAYOUT = (ROOT / "paper_assets").is_dir()
 OUT_ROOT = (
     ROOT / "paper_assets" / "rbcm" / "tables" / "formal_index"
+    if PRIVATE_LAYOUT
+    else ROOT / "docs" / "results" / "reproduced" / "formal_index"
 )
-RESULT_OUT_ROOT = ROOT / "results" / "rbcm" / "scores"
-BIPED_PATH = (
-    ROOT / "paper_assets" / "rbcm" / "tables" / "two_dataset_core"
-    / "01_biped_stability.csv"
+RESULT_OUT_ROOT = (
+    ROOT / "results" / "rbcm" / "scores"
+    if PRIVATE_LAYOUT
+    else ROOT / "docs" / "results" / "reproduced" / "scores"
 )
-MULTICUE_STRICT_PATH = (
-    ROOT / "weights" / "rbcm" / "multicue" / "main" / "formal_summary.json"
+BIPED_PATH = next(
+    path
+    for path in (
+        ROOT / "paper_assets" / "rbcm" / "tables" / "two_dataset_core" / "01_biped_stability.csv",
+        ROOT / "docs" / "results" / "strict" / "biped" / "stability.csv",
+    )
+    if path.is_file()
 )
-NYUD_SUMMARY_PATH = ROOT / "weights" / "rbcm" / "nyudv2" / "main" / "formal_summary.json"
-NYUD_TRANSFER_PATH = (
-    ROOT / "weights" / "rbcm" / "nyudv2" / "main" / "generalization_summary.csv"
+MULTICUE_STRICT_PATH = next(
+    path
+    for path in (
+        ROOT / "weights" / "rbcm" / "multicue" / "main" / "formal_summary.json",
+        ROOT / "pretrained" / "multicue_strict" / "formal_summary.json",
+        ROOT / "docs" / "results" / "strict" / "multicue" / "formal_summary.json",
+    )
+    if path.is_file()
+)
+NYUD_SUMMARY_PATH = next(
+    path
+    for path in (
+        ROOT / "weights" / "rbcm" / "nyudv2" / "main" / "formal_summary.json",
+        ROOT / "pretrained" / "nyudv2_strict" / "formal_summary.json",
+        ROOT / "docs" / "results" / "strict" / "nyudv2" / "formal_summary.json",
+    )
+    if path.is_file()
+)
+NYUD_TRANSFER_PATH = next(
+    path
+    for path in (
+        ROOT / "weights" / "rbcm" / "nyudv2" / "main" / "generalization_summary.csv",
+        ROOT / "docs" / "results" / "strict" / "nyudv2" / "generalization_summary.csv",
+    )
+    if path.is_file()
 )
 
 FIELDS = [
@@ -57,7 +87,10 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def relative(path: Path) -> str:
-    return path.relative_to(ROOT).as_posix()
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def empty_row() -> dict[str, Any]:

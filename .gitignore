@@ -22,6 +22,8 @@ venv/
 /release/
 /doc/
 /docs/manuscript/
+/docs/results/reproduced/
+/figures/results/joint_metrics/
 /checkpoints/
 /logs/
 /runs/

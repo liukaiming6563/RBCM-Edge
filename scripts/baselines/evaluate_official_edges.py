@@ -66,6 +66,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--nyud-root", type=Path, default=PROJECT_ROOT / "edge_data" / "official_rbcm" / "NYUDv2")
     parser.add_argument("--uded-root", type=Path, default=PROJECT_ROOT / "edge_data" / "official_repro" / "UDED")
     parser.add_argument(
+        "--split-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optional explicit evaluation split. For MultiCue and NYUDv2 "
+            "paper-facing runs, pass the strict test list instead of relying "
+            "on a dataset root's top-level splits/test.txt."
+        ),
+    )
+    parser.add_argument(
         "--orientation",
         choices=["auto", "as_is", "inverted"],
         default="as_is",
@@ -202,16 +212,16 @@ def bsds_samples(root: Path) -> list[tuple[str, Path]]:
     return [(stem, root / "groundTruth" / "test" / f"{stem}.mat") for stem in stems]
 
 
-def multicue_samples(root: Path) -> list[tuple[str, Path]]:
-    split_path = root / "splits" / "test.txt"
+def multicue_samples(root: Path, split_file: Path | None = None) -> list[tuple[str, Path]]:
+    split_path = split_file if split_file is not None else root / "splits" / "test.txt"
     if not split_path.exists():
         raise FileNotFoundError(split_path)
     stems = [line.strip().split()[0] for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     return [(stem, root / "gt" / "soft_vote" / f"{stem}.png") for stem in stems]
 
 
-def nyud_samples(root: Path) -> list[tuple[str, Path]]:
-    split_path = root / "splits" / "test.txt"
+def nyud_samples(root: Path, split_file: Path | None = None) -> list[tuple[str, Path]]:
+    split_path = split_file if split_file is not None else root / "splits" / "test.txt"
     if not split_path.exists():
         raise FileNotFoundError(split_path)
     stems = [line.strip().split()[0] for line in split_path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -414,9 +424,15 @@ def main() -> None:
     elif args.dataset == "BSDS500":
         samples = bsds_samples(args.bsds_root.resolve())
     elif args.dataset == "Multicue":
-        samples = multicue_samples(args.multicue_root.resolve())
+        samples = multicue_samples(
+            args.multicue_root.resolve(),
+            args.split_file.resolve() if args.split_file else None,
+        )
     elif args.dataset == "NYUDv2":
-        samples = nyud_samples(args.nyud_root.resolve())
+        samples = nyud_samples(
+            args.nyud_root.resolve(),
+            args.split_file.resolve() if args.split_file else None,
+        )
     else:
         samples = uded_samples(args.uded_root.resolve())
     if args.max_samples:

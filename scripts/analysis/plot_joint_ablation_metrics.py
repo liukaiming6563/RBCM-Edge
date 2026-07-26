@@ -18,10 +18,31 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[2]
-TABLES = ROOT / "paper_assets" / "rbcm" / "tables"
-OUT = ROOT / "paper_assets" / "rbcm" / "figures" / "results" / "joint_metrics"
-BIPED_TABLE = TABLES / "biped_stability_ap_corrected.csv"
-SELF_TEST_TABLE = TABLES / "self_test_ap_corrected.csv"
+
+
+def first_existing(*paths: Path) -> Path:
+    for path in paths:
+        if path.is_file():
+            return path
+    raise FileNotFoundError("None of the expected result files exists:\n" + "\n".join(map(str, paths)))
+
+
+PRIVATE_TABLES = ROOT / "paper_assets" / "rbcm" / "tables"
+PUBLIC_TABLES = ROOT / "docs" / "results" / "strict"
+OUT = (
+    ROOT / "paper_assets" / "rbcm" / "figures" / "results" / "joint_metrics"
+    if (ROOT / "paper_assets").is_dir()
+    else ROOT / "figures" / "results" / "joint_metrics"
+)
+BIPED_TABLE = first_existing(
+    PRIVATE_TABLES / "biped_stability_ap_corrected.csv",
+    PUBLIC_TABLES / "biped" / "stability_splits.csv",
+    PUBLIC_TABLES / "biped" / "stability.csv",
+)
+STRICT_TABLE = first_existing(
+    PRIVATE_TABLES / "strict_protocols" / "same_domain_strict.csv",
+    PUBLIC_TABLES / "tables" / "same_domain_strict.csv",
+)
 AP_DEFINITION = "endpoint-complete precision-envelope AP"
 
 MODE_ORDER = ["plain_identity", "no_surround", "conv_control", "main_surround"]
@@ -229,7 +250,7 @@ def plot_biped() -> pd.DataFrame:
 
 
 def plot_multicue() -> pd.DataFrame:
-    source = pd.read_csv(SELF_TEST_TABLE)
+    source = pd.read_csv(STRICT_TABLE)
     source = source[source["dataset"].str.lower() == "multicue"].set_index("mode").loc[MODE_ORDER].reset_index()
     x = np.arange(len(MODE_ORDER), dtype=float)
     offsets = {"ODS": -0.22, "OIS": 0.0, "AP": 0.22}
@@ -273,7 +294,7 @@ def plot_multicue() -> pd.DataFrame:
                     "score": score,
                     "n_images": int(row["n_images"]),
                     "n_runs": int(row["n_runs"]),
-                    "source": row["source"],
+                    "source": row.get("source_file", row.get("source", "")),
                     "protocol": row["protocol"],
                     "display": "exact score tick; no variance inferred",
                     "ap_definition": AP_DEFINITION,
@@ -288,14 +309,14 @@ def plot_multicue() -> pd.DataFrame:
     ax.text(
         0.01,
         0.018,
-        "Single selected-checkpoint evaluation (20 images); no error bar inferred; AP uses endpoint-complete envelope",
+        "One-pass held-out evaluation (20 sources); no error bar inferred",
         transform=ax.transAxes,
         color=MUTED,
         fontsize=9.2,
         ha="left",
         va="bottom",
     )
-    finish_layout(fig, handles, "MultiCue: joint ODS, OIS and AP under the formal evaluator")
+    finish_layout(fig, handles, "MultiCue: strict held-out ODS, OIS and AP")
     export(fig, "12_multicue_joint_ods_ois_ap")
     return pd.DataFrame(rows)
 
@@ -391,7 +412,7 @@ def plot_biped_metric_grouped() -> pd.DataFrame:
 
 
 def plot_multicue_metric_grouped() -> pd.DataFrame:
-    source = pd.read_csv(SELF_TEST_TABLE)
+    source = pd.read_csv(STRICT_TABLE)
     source = source[source["dataset"].str.lower() == "multicue"].set_index("mode").loc[MODE_ORDER]
     offsets = dict(zip(MODE_ORDER, [-0.27, -0.09, 0.09, 0.27]))
     rows: list[dict[str, object]] = []
@@ -435,7 +456,7 @@ def plot_multicue_metric_grouped() -> pd.DataFrame:
                     "score": score,
                     "n_images": int(row["n_images"]),
                     "n_runs": int(row["n_runs"]),
-                    "source": row["source"],
+                    "source": row.get("source_file", row.get("source", "")),
                     "protocol": row["protocol"],
                     "display": "metric-grouped exact score tick; no variance inferred",
                     "ap_definition": AP_DEFINITION,
@@ -452,14 +473,14 @@ def plot_multicue_metric_grouped() -> pd.DataFrame:
     ax.text(
         0.01,
         0.018,
-        "Single selected-checkpoint evaluation (20 images); no error bar inferred; AP uses endpoint-complete envelope",
+        "One-pass held-out evaluation (20 sources); no error bar inferred",
         transform=ax.transAxes,
         color=MUTED,
         fontsize=9.2,
         ha="left",
         va="bottom",
     )
-    finish_metric_layout(fig, handles, "MultiCue: four ablation models grouped by evaluation metric")
+    finish_metric_layout(fig, handles, "MultiCue: strict held-out ablations by metric")
     export(fig, "14_multicue_metric_grouped_models")
     return pd.DataFrame(rows)
 
@@ -475,8 +496,8 @@ def write_manifest() -> None:
         {
             "figure": "12_multicue_joint_ods_ois_ap",
             "dataset": "MultiCue",
-            "source": "paper_assets/rbcm/tables/self_test_ap_corrected.csv",
-            "interpretation": "One selected-checkpoint evaluation; AP uses endpoint-complete precision-envelope integration.",
+            "source": STRICT_TABLE.relative_to(ROOT).as_posix(),
+            "interpretation": "Strict 68/12/20 protocol; exact one-pass held-out scores.",
         },
         {
             "figure": "13_biped_metric_grouped_models",
@@ -487,8 +508,8 @@ def write_manifest() -> None:
         {
             "figure": "14_multicue_metric_grouped_models",
             "dataset": "MultiCue",
-            "source": "paper_assets/rbcm/tables/self_test_ap_corrected.csv",
-            "interpretation": "Metrics define the x-axis groups; exact scores use the corrected common AP definition.",
+            "source": STRICT_TABLE.relative_to(ROOT).as_posix(),
+            "interpretation": "Metrics define the x-axis groups; exact strict held-out scores.",
         },
     ]
     with (OUT / "manifest.csv").open("w", encoding="utf-8-sig", newline="") as handle:
@@ -497,47 +518,23 @@ def write_manifest() -> None:
         writer.writerows(entries)
 
 
-def _write_legacy_readmes() -> None:
-    zh = """# BIPED 与 MultiCue 三指标联合消融图
-
-- `11_biped_joint_ods_ois_ap`：横轴为 Anchor、No surround、Conv control 和 H-RBCM；每个模型同时显示 ODS、OIS、AP。小圆点为三次固定划分原始值，菱形为均值，误差短线为正负一个样本标准差。
-- `12_multicue_joint_ods_ois_ap`：横轴和指标定义相同。MultiCue 只有一次正式选定 checkpoint 评估，因此短横线和菱形表示精确分数，不虚构误差条或重复实验分布。
-- `13_biped_metric_grouped_models`：横轴改为 ODS、OIS、AP 三组，每组内部并列四种模型；统计含义与 BIPED 上一版相同。
-- `14_multicue_metric_grouped_models`：横轴改为 ODS、OIS、AP 三组，每组内部并列四种模型；仅显示正式评估精确值。
-- 每张图均导出 PNG、SVG、PDF 和 600 dpi TIFF，源数据保存在同一目录。
-"""
-    en = """# Joint BIPED and MultiCue ablation metrics
-
-- `11_biped_joint_ods_ois_ap` shows ODS, OIS, and AP for Anchor, No surround, Conv control, and H-RBCM. Small circles are the three fixed-split values, diamonds are means, and whiskers are +/-1 sample SD.
-- `12_multicue_joint_ods_ois_ap` uses the same model and metric layout. MultiCue has one formal selected-checkpoint evaluation, so ticks and diamonds are exact scores; no error distribution is inferred.
-- `13_biped_metric_grouped_models` switches the x-axis to ODS, OIS, and AP, with four models offset inside each metric group. Statistical marks retain their BIPED meanings.
-- `14_multicue_metric_grouped_models` uses the same metric-grouped layout and exact formal MultiCue scores.
-- Each figure is exported as PNG, SVG, PDF, and 600-dpi TIFF, with source data in this directory.
-"""
-    (OUT / "README.zh-CN.md").write_text(zh, encoding="utf-8")
-    (OUT / "README.md").write_text(en, encoding="utf-8")
-
-
 def write_readmes() -> None:
+    """Write notes for the current strict paper-facing figures."""
     zh = """# BIPED 与 MultiCue 三指标联合消融图
 
-- `11_biped_joint_ods_ois_ap`：横轴为四种消融模型，每种模型同时展示 ODS、OIS 和 AP。小圆点表示三个固定划分，菱形表示均值，误差线表示正负一个样本标准差。
-- `12_multicue_joint_ods_ois_ap`：布局相同。MultiCue 只有一次选定 checkpoint 的 20 图像评估，因此只显示精确分数，不虚构误差线。
+- `11_biped_joint_ods_ois_ap`：四种模型各自同时显示 ODS、OIS 和 AP。小圆点表示三个固定划分，菱形表示均值，误差线表示正负一个样本标准差。
+- `12_multicue_joint_ods_ois_ap`：显示严格 68/12/20 独立协议下的精确分数。该协议只有一个随机种子，不虚构误差线。
 - `13_biped_metric_grouped_models`：横轴改为 ODS、OIS 和 AP，每组内并列四种模型。
-- `14_multicue_metric_grouped_models`：采用同样的指标分组布局，显示四种模型的精确分数。
-- 所有模型和划分统一使用补齐 PR 端点并构造 precision envelope 后的 AP；ODS 和 OIS 未改动。
-- 每张图均导出 PNG、SVG、PDF 和 600 dpi TIFF，源数据保存在同一目录。
-- 当前 MultiCue 的验证列表与测试列表相同，因此图中只称为“20 图像评估”，不能表述为独立测试集结果。
+- `14_multicue_metric_grouped_models`：采用同样的指标分组布局，使用一次性独立测试的精确分数。
+- 每张图均导出 PNG、SVG、PDF 和 600 dpi TIFF，并保存对应源数据。
 """
     en = """# Joint BIPED and MultiCue ablation metrics
 
 - `11_biped_joint_ods_ois_ap` shows ODS, OIS, and AP for Anchor, No surround, Conv control, and H-RBCM. Small circles are the three fixed-split values, diamonds are means, and whiskers are +/-1 sample SD.
-- `12_multicue_joint_ods_ois_ap` uses the same layout. MultiCue has one selected-checkpoint 20-image evaluation, so ticks and diamonds are exact scores; no error distribution is inferred.
+- `12_multicue_joint_ods_ois_ap` uses the strict 68/12/20 source-disjoint protocol. It has one seed, so exact scores are shown without invented error bars.
 - `13_biped_metric_grouped_models` switches the x-axis to ODS, OIS, and AP, with four models offset inside each metric group.
-- `14_multicue_metric_grouped_models` uses the same metric-grouped layout and exact MultiCue scores.
-- AP is uniformly recomputed for every model with PR sentinels and a precision envelope; ODS and OIS are unchanged.
+- `14_multicue_metric_grouped_models` uses the same metric-grouped layout and exact one-pass held-out scores.
 - Each figure is exported as PNG, SVG, PDF, and 600-dpi TIFF, with source data in this directory.
-- MultiCue validation and test lists are currently identical, so these figures do not describe the 20-image evaluation as an independent test set.
 """
     (OUT / "README.zh-CN.md").write_text(zh, encoding="utf-8")
     (OUT / "README.md").write_text(en, encoding="utf-8")

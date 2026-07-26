@@ -32,6 +32,8 @@ BSDS 官方 Matlab 精确二分匹配器。比较时必须统一使用同一后�
 
 三个包上传完成后，在 `DOWNLOADS.md` 填写下载链接与压缩包哈希。
 
+完整复现步骤见 `REPRODUCE.zh-CN.md`；对应英文版为 `REPRODUCE.md`。
+
 ## 环境
 
 使用 Python 3.10 或更高版本，并安装与本机 CUDA 匹配的 PyTorch：

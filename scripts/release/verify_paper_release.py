@@ -57,6 +57,16 @@ def is_vcs_metadata(path: Path, root: Path) -> bool:
     return ".git" in path.relative_to(root).parts
 
 
+def is_reproduction_output(path: Path, root: Path) -> bool:
+    relative = path.relative_to(root).as_posix()
+    return relative.startswith(
+        (
+            "docs/results/reproduced/",
+            "figures/results/joint_metrics/",
+        )
+    )
+
+
 def verify_sha_manifest(root: Path) -> int:
     manifest = root / "MANIFEST_SHA256.csv"
     if not manifest.is_file():
@@ -78,7 +88,12 @@ def verify_sha_manifest(root: Path) -> int:
     actual = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_file() and path != manifest and not is_vcs_metadata(path, root)
+        if (
+            path.is_file()
+            and path != manifest
+            and not is_vcs_metadata(path, root)
+            and not is_reproduction_output(path, root)
+        )
     }
     if actual != indexed:
         missing = sorted(indexed - actual)

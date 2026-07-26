@@ -1,0 +1,15 @@
+# Tested local evaluation and strict-NYUDv2 environment.
+# Install a CUDA-matched PyTorch build before this file when using another CUDA version.
+numpy==2.2.4
+pandas==2.2.3
+matplotlib==3.10.1
+scipy==1.15.3
+scikit-image==0.25.2
+scikit-learn==1.6.1
+PyYAML==6.0.2
+tqdm==4.67.1
+pillow==11.1.0
+opencv-python-headless==4.11.0.86
+kornia==0.8.1
+thop==0.1.1.post2209072238
+efficientnet-pytorch==0.7.1

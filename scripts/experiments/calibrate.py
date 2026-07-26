@@ -1,10 +1,10 @@
-"""Search validation-selected center-surround logit calibration on BIPED.
+"""Search validation-selected center-surround logit calibration.
 
-This is a fast diagnostic/HPO script for the HED-lite path.  It does not train
-or change a checkpoint.  Instead, it treats an existing HED-lite checkpoint as
-the center edge evidence and searches compact surround-to-center logit
-calibration parameters on the BIPED train-tail validation split.  The selected
-parameters are then evaluated once on the BIPED test split.
+This script does not train or change a checkpoint. It treats an existing
+HED-lite checkpoint as center edge evidence and searches compact
+surround-to-center logit calibration parameters on an explicitly selected
+validation split. Paper-facing runs must freeze the selected candidates before
+the independent test split is read.
 
 The goal is to determine whether a clean, validation-selected annular surround
 calibration can produce a materially larger gap than the learned plugin-style

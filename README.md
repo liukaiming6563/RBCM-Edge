@@ -36,6 +36,9 @@ Place the separately distributed directories at the repository root:
 Download links and archive hashes can be filled into `DOWNLOADS.md` after the
 three large packages are uploaded.
 
+The canonical step-by-step guide is `REPRODUCE.md`; the matching Chinese guide
+is `REPRODUCE.zh-CN.md`.
+
 ## Environment
 
 Use Python 3.10 or newer and install a PyTorch build matching the local CUDA

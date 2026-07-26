@@ -13,24 +13,33 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PAPER_OUT = ROOT / "paper_assets" / "rbcm" / "tables" / "strict_protocols"
-RESULT_OUT = ROOT / "results" / "rbcm" / "scores" / "strict_protocols"
-
-FORMAL_INDEX = (
-    ROOT
-    / "paper_assets"
-    / "rbcm"
-    / "tables"
-    / "formal_index"
-    / "formal_result_index.csv"
+PRIVATE_LAYOUT = (ROOT / "paper_assets").is_dir()
+PAPER_OUT = (
+    ROOT / "paper_assets" / "rbcm" / "tables" / "strict_protocols"
+    if PRIVATE_LAYOUT
+    else ROOT / "docs" / "results" / "reproduced" / "strict" / "tables"
 )
-NYUD_EXTERNAL = (
-    ROOT
-    / "paper_assets"
-    / "rbcm"
-    / "tables"
-    / "fair_generalization"
-    / "source_matched_comparisons.csv"
+RESULT_OUT = (
+    ROOT / "results" / "rbcm" / "scores" / "strict_protocols"
+    if PRIVATE_LAYOUT
+    else ROOT / "docs" / "results" / "reproduced" / "strict" / "scores"
+)
+FORMAL_INDEX = next(
+    path
+    for path in (
+        ROOT / "paper_assets" / "rbcm" / "tables" / "formal_index" / "formal_result_index.csv",
+        ROOT / "docs" / "results" / "reproduced" / "formal_index" / "formal_result_index.csv",
+        ROOT / "docs" / "results" / "strict" / "formal_result_index.csv",
+    )
+    if path.is_file()
+)
+NYUD_EXTERNAL = next(
+    path
+    for path in (
+        ROOT / "paper_assets" / "rbcm" / "tables" / "fair_generalization" / "source_matched_comparisons.csv",
+        ROOT / "docs" / "results" / "strict" / "tables" / "nyudv2_vs_pidinet.csv",
+    )
+    if path.is_file()
 )
 
 MODES = (
