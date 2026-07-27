@@ -24,13 +24,14 @@ BSDS 官方 Matlab 精确二分匹配器。比较时必须统一使用同一后�
 
 ## 外部大文件包
 
-将单独发布的目录放在代码根目录：
+大文件按两个压缩包发布：
 
-- `RBCM-Edge-Checkpoints` 中的 `pretrained/`；
-- `RBCM-Edge-Datasets` 中的 `edge_data/`；
-- `RBCM-Edge-MEA-Data` 中的 `MEA_data/`。
+- `RBCM-Edge-Data.tar.gz`：`edge_data/`、从 Kilosort 输出开始的
+  `MEA_data/`、协议配置与完整性清单；
+- `RBCM-Edge-Pretrained.tar.gz`：精选 H-RBCM 权重、验证集冻结候选、
+  配置与完整性清单。
 
-三个包上传完成后，在 `DOWNLOADS.md` 填写下载链接与压缩包哈希。
+百度网盘链接、提取码、文件大小和 SHA-256 统一记录在 `DOWNLOADS.md`。
 
 完整复现步骤见 `REPRODUCE.zh-CN.md`；对应英文版为 `REPRODUCE.md`。
 

@@ -27,14 +27,15 @@ the protocol explicitly in reported tables.
 
 ## External packages
 
-Place the separately distributed directories at the repository root:
+Large assets are distributed as two archives:
 
-- `pretrained/` from `RBCM-Edge-Checkpoints`;
-- `edge_data/` from `RBCM-Edge-Datasets`;
-- `MEA_data/` from `RBCM-Edge-MEA-Data`.
+- `RBCM-Edge-Data.tar.gz`: `edge_data/`, Kilosort-derived `MEA_data/`,
+  protocol configs, and integrity manifests;
+- `RBCM-Edge-Pretrained.tar.gz`: selected H-RBCM checkpoints, frozen
+  validation candidates, configs, and integrity manifests.
 
-Download links and archive hashes can be filled into `DOWNLOADS.md` after the
-three large packages are uploaded.
+The verified Baidu Netdisk link, extraction code, sizes, and SHA-256 values
+are recorded in `DOWNLOADS.md`.
 
 The canonical step-by-step guide is `REPRODUCE.md`; the matching Chinese guide
 is `REPRODUCE.zh-CN.md`.

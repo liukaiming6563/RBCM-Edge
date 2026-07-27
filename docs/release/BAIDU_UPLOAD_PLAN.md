@@ -2,26 +2,37 @@
 
 ## Upload after final packing
 
-1. `RBCM-Edge-Checkpoints`
+1. `RBCM-Edge-Data.tar.gz`
+   - Exact `edge_data/official_rbcm`, `edge_data/official_repro`, and
+     `MEA_data` trees.
+   - Final edge-model YAML files, bilingual protocol documentation, split
+     files, processed GT, data indexes, and protocol hashes.
+   - Uploaded archive: 18,443,403,941 bytes.
+   - SHA-256:
+     `d1c9dd8694dc16f1c190047c82b0e9689e5f781d86273af0ec95f2ac97dcfc60`.
+   - The MEA subtree starts from Kilosort outputs and excludes
+     `data.raw.h5` and converted `data.raw.bin`.
+   - Upload the edge image/GT content only after confirming redistribution
+     rights for every upstream dataset. Upload MEA data only after ethics,
+     consent, institutional, and source-data sharing approval. If either class
+     of data cannot be redistributed, use official download/preparation
+     instructions or controlled access for that subtree.
+
+2. `RBCM-Edge-Pretrained.tar.gz`
    - Selected BIPED, strict MultiCue, and strict NYUDv2 checkpoints.
-   - Frozen validation candidates, configs, protocol manifests, and SHA-256 manifest.
-   - Current unpacked size: 425,987,732 bytes (about 0.397 GiB).
-   - This package is authored by the project and is the highest-priority upload.
+   - Frozen validation candidates, portable and source configs, protocol
+     manifests, training summaries, and per-file SHA-256 records.
+   - Uploaded archive: 392,322,360 bytes.
+   - SHA-256:
+     `5afdbfcd066ffead18654578cc083df640b25d850b690cb8ef7343867352b65b`.
+   - The package contains project checkpoints only; third-party external-model
+     weights are excluded.
 
-2. `RBCM-Edge-Datasets`
-   - Exact `edge_data/official_rbcm` and `edge_data/official_repro` trees.
-   - Split files, processed GT, file index, and protocol hashes.
-   - Current unpacked size: 17,236,266,110 bytes (about 16.05 GiB).
-   - Upload the full image/GT archive only after confirming redistribution rights
-     for every upstream dataset. If redistribution is not allowed, publish only
-     the split/protocol package and provide official download plus preparation
-     instructions.
+Upload `SHA256SUMS.txt` beside the two archives.
 
-3. `RBCM-Edge-MEA-Data`
-   - Final MEA inputs and per-file SHA-256 manifest.
-   - Current unpacked size: 8,858,482,461 bytes (about 8.25 GiB).
-   - Upload only after ethics, consent, institutional, and source-data sharing
-     approval. Otherwise use controlled access or a data-availability request.
+Baidu Netdisk: https://pan.baidu.com/s/1vdzNH616H7_eu80oCMXptg
+
+Extraction code: `i8uc`
 
 ## Publish on GitHub, not Netdisk
 
@@ -39,6 +50,5 @@
 - raw datasets or MEA recordings without redistribution authorization.
 
 For external models, publish the model name, upstream URL, upstream checkpoint
-hash, adapter command, and evaluator command. After packing each Netdisk archive,
-compute a new archive-level SHA-256 and enter its link, extraction code, byte
-size, and hash in `DOWNLOADS.md`.
+hash, adapter command, and evaluator command. The public `DOWNLOADS.md`
+contains the verified link, extraction code, byte sizes, and archive hashes.

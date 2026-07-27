@@ -20,6 +20,11 @@ before extracting it. Dataset and MEA archives may only be redistributed when
 the original license, ethics, consent, and institutional data-sharing terms
 permit it.
 
+The released MEA input starts from Kilosort outputs and downstream derived
+matrices. Continuous acquisition files such as `data.raw.h5` and converted
+`data.raw.bin` are not part of the download and are not required by the
+released trajectory, statistics, and figure pipeline.
+
 ## 2. Create the environment
 
 The strict NYUDv2 run and local verification used Python 3.10.16,
