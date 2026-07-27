@@ -6,7 +6,6 @@ the study:
 1. retinal MEA analysis of UME and CME local population trajectories;
 2. H-RBCM edge detection with annular surround-to-center logit modulation.
 
-Historical ResNet, PiDiNet, A-G, probe, and exploratory variants are excluded.
 The repository contains code and configuration only. Raw recordings, image
 datasets, checkpoints, and generated results are distributed separately.
 

@@ -26,5 +26,3 @@ RBCM 是最终论文使用的边缘模型：
 - 权重与固定候选：`weights/rbcm`
 - 结果：`results/rbcm`
 - 文档：`docs/edge/zh`
-
-历史 ResNet/PiDiNet/A-G 实现不是本路线的依赖。

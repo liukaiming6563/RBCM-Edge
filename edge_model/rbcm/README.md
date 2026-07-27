@@ -30,5 +30,3 @@ numbers as if they were identical.
 - Weights and fixed calibration rows: `weights/rbcm`
 - Results: `results/rbcm`
 - Documentation: `docs/edge/en`
-
-Legacy ResNet/PiDiNet/A-G implementations are not dependencies of this route.

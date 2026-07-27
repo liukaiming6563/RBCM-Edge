@@ -5,9 +5,6 @@ The trainable network in RBCM is the plain HED-lite anchor. The paper's
 validation-selected logit calibration functions applied after anchor
 inference; they are implemented by the RBCM experiment scripts rather than
 as separately trained neural networks.
-
-Historical ResNet, PiDiNet, A/G-series, and neural-RBCM factories are archived
-under ``backup/legacy_edge/code``.
 """
 
 from __future__ import annotations
@@ -25,8 +22,7 @@ def build_model(config: dict) -> EdgeAnchor:
 
     if name not in {"baseline_host_edge", "baseline_host", "edge_baseline_host"}:
         raise ValueError(
-            f"The formal RBCM release only supports the edge-anchor factory; got name={name!r}. "
-            "Historical factories are in backup/legacy_edge/code."
+            f"The formal RBCM release only supports the edge-anchor factory; got name={name!r}."
         )
     if host not in {"hed_lite", "hed", "hed_style", "hed_edge"}:
         raise ValueError(f"The formal RBCM release requires host='hed_lite'; got {host!r}.")
