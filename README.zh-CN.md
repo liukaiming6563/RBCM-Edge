@@ -8,6 +8,38 @@
 仓库只包含代码与配置；原始记录、图像数据集、checkpoint 和生成结果单独
 发布。
 
+## 从本仓库开始复现
+
+对外只需要分享本 GitHub 仓库链接。本页已经集中提供源码、资源包下载、
+完整性哈希、环境说明和完整复现文档的入口。
+
+1. 克隆公开仓库：
+
+   ```bash
+   git clone https://github.com/liukaiming6563/RBCM-Edge.git
+   cd RBCM-Edge
+   ```
+
+2. 从百度网盘下载两个大文件资源包：
+
+   - 链接：<https://pan.baidu.com/s/1vdzNH616H7_eu80oCMXptg>
+   - 提取码：`i8uc`
+
+   | 压缩包 | 内容 | SHA-256 |
+   |---|---|---|
+   | `RBCM-Edge-Data.tar.gz` | 边缘检测数据集、固定划分、评估资源和 Kilosort 衍生 MEA 输入 | `d1c9dd8694dc16f1c190047c82b0e9689e5f781d86273af0ec95f2ac97dcfc60` |
+   | `RBCM-Edge-Pretrained.tar.gz` | 精选 H-RBCM 权重、冻结的验证集候选、配置与清单 | `5afdbfcd066ffead18654578cc083df640b25d850b690cb8ef7343867352b65b` |
+
+3. 按上述哈希校验并解压，把 `edge_data/`、`MEA_data/` 和
+   `pretrained/` 放到仓库根目录。
+
+4. 按 [REPRODUCE.zh-CN.md](REPRODUCE.zh-CN.md) 完成环境创建、协议审计、
+   checkpoint 推理评估、论文表图重建和 MEA 分析复现。英文说明见
+   [REPRODUCE.md](REPRODUCE.md)。
+
+压缩包大小、包内目录和不同系统的校验方法也保存在
+[DOWNLOADS.zh-CN.md](DOWNLOADS.zh-CN.md)。
+
 ## 源码结构
 
 - `MEA_analysis`：最终 MEA 轨迹主分析和共享读取函数；
@@ -31,7 +63,8 @@ BSDS 官方 Matlab 精确二分匹配器。比较时必须统一使用同一后�
 - `RBCM-Edge-Pretrained.tar.gz`：精选 H-RBCM 权重、验证集冻结候选、
   配置与完整性清单。
 
-百度网盘链接、提取码、文件大小和 SHA-256 统一记录在 `DOWNLOADS.md`。
+同一百度网盘链接、提取码、文件大小和 SHA-256 也记录在
+`DOWNLOADS.zh-CN.md`。
 
 完整复现步骤见 `REPRODUCE.zh-CN.md`；对应英文版为 `REPRODUCE.md`。
 

@@ -9,6 +9,40 @@ the study:
 The repository contains code and configuration only. Raw recordings, image
 datasets, checkpoints, and generated results are distributed separately.
 
+## Reproduce from this repository
+
+This GitHub repository is the only link that needs to be shared. The source,
+large-asset download, integrity hashes, environment, and complete reproduction
+instructions are all linked from this page.
+
+1. Clone the public repository:
+
+   ```bash
+   git clone https://github.com/liukaiming6563/RBCM-Edge.git
+   cd RBCM-Edge
+   ```
+
+2. Download the two large-asset archives from Baidu Netdisk:
+
+   - URL: <https://pan.baidu.com/s/1vdzNH616H7_eu80oCMXptg>
+   - extraction code: `i8uc`
+
+   | Archive | Contents | SHA-256 |
+   |---|---|---|
+   | `RBCM-Edge-Data.tar.gz` | Edge datasets, fixed splits, evaluation resources, and Kilosort-derived MEA inputs | `d1c9dd8694dc16f1c190047c82b0e9689e5f781d86273af0ec95f2ac97dcfc60` |
+   | `RBCM-Edge-Pretrained.tar.gz` | Selected H-RBCM checkpoints, frozen validation candidates, configs, and manifests | `5afdbfcd066ffead18654578cc083df640b25d850b690cb8ef7343867352b65b` |
+
+3. Verify both archives using the published hashes, extract them, and place
+   `edge_data/`, `MEA_data/`, and `pretrained/` in the repository root.
+
+4. Follow [REPRODUCE.md](REPRODUCE.md) or
+   [REPRODUCE.zh-CN.md](REPRODUCE.zh-CN.md) to create the environment, audit
+   the protocols, rerun checkpoint evaluation, rebuild paper tables and
+   figures, and reproduce the MEA analysis.
+
+The archive sizes, package layout, and platform-specific verification commands
+are also recorded in [DOWNLOADS.md](DOWNLOADS.md).
+
 ## Source layout
 
 - `MEA_analysis`: final MEA trajectory analysis and shared data loaders;
@@ -33,8 +67,8 @@ Large assets are distributed as two archives:
 - `RBCM-Edge-Pretrained.tar.gz`: selected H-RBCM checkpoints, frozen
   validation candidates, configs, and integrity manifests.
 
-The verified Baidu Netdisk link, extraction code, sizes, and SHA-256 values
-are recorded in `DOWNLOADS.md`.
+The same Baidu Netdisk link, extraction code, sizes, and SHA-256 values are
+recorded in `DOWNLOADS.md`.
 
 The canonical step-by-step guide is `REPRODUCE.md`; the matching Chinese guide
 is `REPRODUCE.zh-CN.md`.
