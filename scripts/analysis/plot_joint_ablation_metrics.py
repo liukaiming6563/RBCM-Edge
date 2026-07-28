@@ -27,22 +27,13 @@ def first_existing(*paths: Path) -> Path:
     raise FileNotFoundError("None of the expected result files exists:\n" + "\n".join(map(str, paths)))
 
 
-PRIVATE_TABLES = ROOT / "paper_assets" / "rbcm" / "tables"
 PUBLIC_TABLES = ROOT / "docs" / "results" / "strict"
-OUT = (
-    ROOT / "paper_assets" / "rbcm" / "figures" / "results" / "joint_metrics"
-    if (ROOT / "paper_assets").is_dir()
-    else ROOT / "figures" / "results" / "joint_metrics"
-)
+OUT = ROOT / "figures" / "results" / "joint_metrics"
 BIPED_TABLE = first_existing(
-    PRIVATE_TABLES / "biped_stability_ap_corrected.csv",
     PUBLIC_TABLES / "biped" / "stability_splits.csv",
     PUBLIC_TABLES / "biped" / "stability.csv",
 )
-STRICT_TABLE = first_existing(
-    PRIVATE_TABLES / "strict_protocols" / "same_domain_strict.csv",
-    PUBLIC_TABLES / "tables" / "same_domain_strict.csv",
-)
+STRICT_TABLE = PUBLIC_TABLES / "tables" / "same_domain_strict.csv"
 AP_DEFINITION = "endpoint-complete precision-envelope AP"
 
 MODE_ORDER = ["plain_identity", "no_surround", "conv_control", "main_surround"]
@@ -490,7 +481,7 @@ def write_manifest() -> None:
         {
             "figure": "11_biped_joint_ods_ois_ap",
             "dataset": "BIPED",
-            "source": "paper_assets/rbcm/tables/biped_stability_ap_corrected.csv",
+            "source": BIPED_TABLE.relative_to(ROOT).as_posix(),
             "interpretation": "Three fixed splits; AP uses endpoint-complete precision-envelope integration.",
         },
         {
@@ -502,7 +493,7 @@ def write_manifest() -> None:
         {
             "figure": "13_biped_metric_grouped_models",
             "dataset": "BIPED",
-            "source": "paper_assets/rbcm/tables/biped_stability_ap_corrected.csv",
+            "source": BIPED_TABLE.relative_to(ROOT).as_posix(),
             "interpretation": "Metrics define the x-axis groups; AP is endpoint-complete and precision-enveloped.",
         },
         {

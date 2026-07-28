@@ -8,32 +8,22 @@ __pycache__/
 venv/
 .local_pkgs/
 
-# Local data. MEA_data contains large Kilosort outputs and stimulus videos.
+# Downloaded large assets
 /MEA_data/
-/Image_data/
 /edge_data/
-/data/
+/pretrained/
+
+# Generated outputs
 /outputs/
 /MEA_outputs/
 /edge_outputs/
 /results/
-/paper_assets/
-/weights/
-/release/
-/doc/
-/docs/manuscript/
 /docs/results/reproduced/
 /figures/results/joint_metrics/
 /checkpoints/
 /logs/
 /runs/
 /wandb/
-
-# Baseline local clones, vendored helper deps, and heavyweight artifacts.
-edge_model/baselines/external/
-edge_model/baselines/weights/
-edge_model/baselines/vendor/
-weight-tmp/
 
 # Model artifacts and generated figures
 *.pt
@@ -60,10 +50,7 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Local backups not intended for GitHub
+# Local backups and workspace instructions
 /backup/
 /tmp/
-/docs/备份/
-
-# Local workspace instructions
 /AGENTS.md
