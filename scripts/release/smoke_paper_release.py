@@ -17,18 +17,8 @@ sys.dont_write_bytecode = True
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEVELOPMENT_RELEASE_ROOT = PROJECT_ROOT / "release"
-if (DEVELOPMENT_RELEASE_ROOT / "github" / "RBCM-Edge").is_dir():
-    ROOT = DEVELOPMENT_RELEASE_ROOT / "github" / "RBCM-Edge"
-    DEFAULT_CHECKPOINT_ROOT = (
-        DEVELOPMENT_RELEASE_ROOT
-        / "checkpoints"
-        / "RBCM-Edge-Checkpoints"
-        / "pretrained"
-    )
-else:
-    ROOT = PROJECT_ROOT
-    DEFAULT_CHECKPOINT_ROOT = ROOT / "pretrained"
+ROOT = PROJECT_ROOT
+DEFAULT_CHECKPOINT_ROOT = ROOT / "pretrained"
 for import_root in (ROOT, ROOT / "src"):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
@@ -103,7 +93,8 @@ def smoke_checkpoint(
     )
     if not checkpoint.exists() or not candidates.exists():
         raise FileNotFoundError(
-            f"Extract RBCM-Edge-Checkpoints so pretrained/{package_name} exists."
+            "Extract RBCM-Edge-Pretrained.tar.gz and place "
+            f"pretrained/{package_name} in the repository root."
         )
 
     config_path = (
