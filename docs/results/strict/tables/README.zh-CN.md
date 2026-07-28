@@ -1,6 +1,6 @@
 # H-RBCM 严格协议结果
 
-本目录由 `scripts/analysis/build_strict_protocol_tables.py` 生成，只汇总可用于正式论文的独立协议。旧 MultiCue 验证/报告集合重合结果不参与这些表格。
+本目录由 `scripts/analysis/build_strict_protocol_tables.py` 生成，只汇总可用于正式论文的独立协议。
 
 ## 主要同域结论
 

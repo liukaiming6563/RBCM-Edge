@@ -5,9 +5,6 @@
     "Multicue_strict",
     "NYUDv2_strict"
   ],
-  "archival_protocols": [
-    "Multicue_validation_report_overlap"
-  ],
   "rows": [
     {
       "scope": "same_domain_stability",

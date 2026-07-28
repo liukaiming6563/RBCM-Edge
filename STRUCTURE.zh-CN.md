@@ -15,7 +15,6 @@ RBCM-Edge/
     release/           数据包验证与复现入口
   docs/
     results/           冻结的正式结果摘要与协议证据
-    release/           下载清单与压缩包校验值
 ```
 
 大体量数据集和预训练权重通过 `DOWNLOADS.zh-CN.md` 中的网盘链接单独

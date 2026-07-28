@@ -1,7 +1,7 @@
 # Reproducing RBCM-Edge
 
-This guide covers the final paper-facing MEA analysis and H-RBCM edge-detection
-experiments. Historical model variants are not part of the reproduction target.
+This guide covers the final paper-facing MEA analysis, H-RBCM edge-detection
+experiments, and their formal evaluation outputs.
 
 ## 1. Obtain the source and assets
 

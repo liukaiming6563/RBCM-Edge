@@ -15,7 +15,6 @@ RBCM-Edge/
     release/           package verification and reproduction entrypoints
   docs/
     results/           frozen formal result summaries and protocol evidence
-    release/           download inventory and archive checksums
 ```
 
 Large datasets and pretrained checkpoints are distributed separately through
