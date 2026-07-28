@@ -67,6 +67,15 @@ def is_reproduction_output(path: Path, root: Path) -> bool:
     )
 
 
+def is_runtime_artifact(path: Path, root: Path) -> bool:
+    relative = path.relative_to(root)
+    return (
+        "__pycache__" in relative.parts
+        or path.suffix in {".pyc", ".pyo"}
+        or path.name in {".DS_Store", "Thumbs.db"}
+    )
+
+
 def verify_sha_manifest(root: Path) -> int:
     manifest = root / "MANIFEST_SHA256.csv"
     if not manifest.is_file():
@@ -93,6 +102,7 @@ def verify_sha_manifest(root: Path) -> int:
             and path != manifest
             and not is_vcs_metadata(path, root)
             and not is_reproduction_output(path, root)
+            and not is_runtime_artifact(path, root)
         )
     }
     if actual != indexed:
