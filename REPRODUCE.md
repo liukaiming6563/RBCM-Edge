@@ -104,8 +104,6 @@ python scripts/analysis/plot_joint_ablation_metrics.py
 ```
 
 The current formal tables contain BIPED, strict MultiCue, and strict NYUDv2.
-Scripts that reconstruct the retired overlapping MultiCue route require an
-explicit archival flag and must not be used for the main paper table.
 
 ## 6. Reproduce training
 

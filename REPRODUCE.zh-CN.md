@@ -1,6 +1,6 @@
 # RBCM-Edge 复现说明
 
-本文档覆盖论文最终使用的 MEA 分析和 H-RBCM 边缘检测实验，不包含已废弃的历史模型路线。
+本文档覆盖论文最终使用的 MEA 分析、H-RBCM 边缘检测实验及其正式评估结果。
 
 ## 1. 获取代码和大文件
 
@@ -92,8 +92,7 @@ python scripts/analysis/build_strict_protocol_tables.py
 python scripts/analysis/plot_joint_ablation_metrics.py
 ```
 
-当前正式表只使用 BIPED、严格 MultiCue 和严格 NYUDv2。重建旧 MultiCue 重合协议
-的脚本必须显式传入归档参数，不能用于正文主表。
+当前正式表只使用 BIPED、严格 MultiCue 和严格 NYUDv2。
 
 ## 6. 从头训练
 
