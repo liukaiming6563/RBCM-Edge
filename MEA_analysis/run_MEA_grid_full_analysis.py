@@ -16,7 +16,7 @@
   这是因为当前 MEA_data 中并非所有实验都保留了 unit_positions_good.csv。
 
 输出：
-- 统一保存到 D:/study/project/RBCM-Edge/outputs/MEA_analysis/MEA_analysis_final
+- 统一保存到项目根目录下的 `MEA_outputs/grid_full_analysis/`；
 - 包括 tables、figures、reports、logs、configs、code_snapshot。
 """
 

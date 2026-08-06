@@ -23,6 +23,6 @@ RBCM 是最终论文使用的边缘模型：
 ## 资产
 
 - 配置：`edge_model/configs/rbcm`
-- 权重与固定候选：`weights/rbcm`
-- 结果：`results/rbcm`
+- 权重与固定候选：`edge_outputs/rbcm/checkpoints`
+- 结果：`edge_outputs/rbcm`
 - 文档：`docs/edge/zh`

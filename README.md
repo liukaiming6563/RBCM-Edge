@@ -1,123 +1,56 @@
 # RBCM-Edge
 
-This public source package contains the final code for two connected parts of
-the study:
+This branch is the code-and-configuration release for **H-RBCM (HED-lite
+Retinal Boundary Context Modulation)** and the associated retinal MEA analysis.
+It is synchronized with manuscript V5.
 
-1. retinal MEA analysis of UME and CME local population trajectories;
-2. H-RBCM edge detection with annular surround-to-center logit modulation.
+The repository intentionally excludes manuscripts, rendered figures, result
+tables, raw recordings, image datasets, checkpoints, predictions, and all
+historical model variants. Generated outputs remain local and are ignored by
+Git.
 
-The repository contains code and configuration only. Raw recordings, image
-datasets, checkpoints, and generated results are distributed separately.
+## Final computational scope
 
-## Reproduce from this repository
-
-This GitHub repository is the only link that needs to be shared. The source,
-large-asset download, integrity hashes, environment, and complete reproduction
-instructions are all linked from this page.
-
-1. Clone the public repository:
-
-   ```bash
-   git clone https://github.com/liukaiming6563/RBCM-Edge.git
-   cd RBCM-Edge
-   ```
-
-2. Download the two large-asset archives from Baidu Netdisk:
-
-   - URL: <https://pan.baidu.com/s/1vdzNH616H7_eu80oCMXptg>
-   - extraction code: `i8uc`
-
-   | Archive | Contents | SHA-256 |
-   |---|---|---|
-   | `RBCM-Edge-Data.tar.gz` | Edge datasets, fixed splits, evaluation resources, and Kilosort-derived MEA inputs | `d1c9dd8694dc16f1c190047c82b0e9689e5f781d86273af0ec95f2ac97dcfc60` |
-   | `RBCM-Edge-Pretrained.tar.gz` | Selected H-RBCM checkpoints, frozen validation candidates, configs, and manifests | `5afdbfcd066ffead18654578cc083df640b25d850b690cb8ef7343867352b65b` |
-
-3. Verify both archives using the published hashes, extract them, and place
-   `edge_data/`, `MEA_data/`, and `pretrained/` in the repository root.
-
-4. Follow [REPRODUCE.md](REPRODUCE.md) or
-   [REPRODUCE.zh-CN.md](REPRODUCE.zh-CN.md) to create the environment, audit
-   the protocols, rerun checkpoint evaluation, rebuild paper tables and
-   figures, and reproduce the MEA analysis.
-
-The archive sizes, package layout, and platform-specific verification commands
-are also recorded in [DOWNLOADS.md](DOWNLOADS.md).
+- one trainable HED-lite edge anchor with four encoder stages and three decoder
+  branches;
+- four outputs derived from the same frozen anchor: `plain_identity`,
+  `main_surround`, `no_surround`, and `conv_control`;
+- deterministic H-RBCM calibration using normalized Sobel evidence, near/far
+  square annuli, signed center-surround contrast, uncertainty gating, and
+  logit-space correction;
+- source-validation candidate selection followed by frozen same-domain and
+  cross-domain evaluation;
+- final UME/CME local-population MEA analysis;
+- V5 Figure 5 statistics based on within-sample mean centering, median absolute
+  residual scaling, and a symmetric one-MAD threshold.
 
 ## Source layout
 
-- `MEA_analysis`: final MEA trajectory analysis and shared data loaders;
-- `MEA_model`: paper-facing MEA figure and statistical-summary modules;
-- `edge_model`: H-RBCM training, inference, calibration, and evaluation;
-- `src/rbcm_edge`: importable H-RBCM implementation;
-- `scripts`: reproducibility, integrity, and pipeline entry points.
-- `docs/results`: canonical machine-readable paper scores with protocol labels.
+- `MEA_analysis`: final MEA analysis and shared data loaders;
+- `MEA_model`: reproducible MEA plotting and statistical-summary programs;
+- `edge_model`: anchor training, inference, and evaluation;
+- `src/rbcm_edge`: importable HED-lite model and loss implementation;
+- `scripts`: calibration, protocol checks, cross-domain evaluation, Figure 5
+  statistics, and release validation.
 
-The Python evaluator is a shared near-official implementation with original
-image sizes, NMS, threshold sweeping, and target-specific localization
-tolerance. Its dilation matcher is not the exact BSDS benchmark Matlab
-bipartite matcher. Use one backend consistently within a comparison and label
-the protocol explicitly in reported tables.
+Large inputs and pretrained checkpoints are obtained separately as described
+in `DOWNLOADS.md`. The full workflow is documented in `REPRODUCE.md` and
+`REPRODUCE.zh-CN.md`.
 
-## External packages
-
-Large assets are distributed as two archives:
-
-- `RBCM-Edge-Data.tar.gz`: `edge_data/`, Kilosort-derived `MEA_data/`,
-  protocol configs, and integrity manifests;
-- `RBCM-Edge-Pretrained.tar.gz`: selected H-RBCM checkpoints, frozen
-  validation candidates, configs, and integrity manifests.
-
-The same Baidu Netdisk link, extraction code, sizes, and SHA-256 values are
-recorded in `DOWNLOADS.md`.
-
-The canonical step-by-step guide is `REPRODUCE.md`; the matching Chinese guide
-is `REPRODUCE.zh-CN.md`.
-
-## Environment
-
-Use Python 3.10 or newer and install a PyTorch build matching the local CUDA
-runtime:
+## Quick validation
 
 ```bash
-pip install -e .
-pip install opencv-python-headless
-```
-
-## H-RBCM
-
-H-RBCM trains one HED-lite center-edge anchor and derives four matched outputs:
-`plain_identity`, `main_surround`, `no_surround`, and `conv_control`.
-Calibration candidates are selected on validation data and then frozen.
-The formal score index is `docs/results/formal_result_index.csv`; it records
-the protocol role and evidence source beside every score.
-
-```bash
+python -m pip install -r requirements-repro.txt
+python -m pip install -e .
+python scripts/release/verify_paper_release.py --code-root .
 python scripts/release/smoke_paper_release.py   --checkpoint-root pretrained --dataset all
-python scripts/checks/audit_multicue_strict_protocol.py   --config edge_model/configs/rbcm/multicue_strict.yaml
-python scripts/checks/audit_nyud_strict_protocol.py   --config edge_model/configs/rbcm/nyudv2_strict.yaml
-python scripts/analysis/evaluate_nyud_strict_generalization.py   --config edge_model/configs/rbcm/nyudv2_strict.yaml   --checkpoint pretrained/nyudv2_strict/best.pt   --formal-summary pretrained/nyudv2_strict/formal_summary.json   --run-tag nyudv2_strict_reproduction   --datasets BIPED Multicue NYUDv2 BSDS500 UDED   --device cuda --batch-size 1 --num-workers 2
 ```
 
-Training is resumable:
+The shared Python evaluator restores original image sizes, optionally applies
+NMS, sweeps fixed thresholds, and uses a target-specific localization
+tolerance. Its dilation matcher is a near-official common evaluator, not the
+exact BSDS Matlab bipartite matcher; comparisons must use and label one backend
+consistently.
 
-```bash
-python edge_model/train.py   --config edge_model/configs/rbcm/nyudv2_strict.yaml --resume
-```
-
-## MEA analysis
-
-List or run the formal sequence with:
-
-```bash
-python scripts/analysis/run_mea_pipeline.py --list
-python scripts/analysis/run_mea_pipeline.py
-```
-
-The pipeline reads `MEA_data/` and writes reproducible tables, reports, and
-figures under `MEA_outputs/`.
-
-## Licensing
-
-No code license is assigned automatically. Dataset and recording
-redistribution remains governed by the original sources and ethics/data-use
-requirements. Review these terms before public distribution.
+No code license is assigned automatically. Dataset and recording distribution
+remains governed by the original sources and applicable ethics/data-use terms.

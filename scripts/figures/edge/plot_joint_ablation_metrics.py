@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Plot endpoint-corrected ODS/OIS/AP comparisons for H-RBCM ablations.
+"""Plot primary ODS/OIS/AP comparisons for H-RBCM ablations.
 
-BIPED contains three fixed split evaluations, so the figure shows every split,
-the mean, and +/-1 sample SD. MultiCue has one formal selected-checkpoint
-evaluation, so only exact score ticks are shown; no variance is inferred.
+BIPED is reported as the arithmetic mean of three fixed split evaluations.
+MultiCue is a single strict held-out evaluation. The paper-facing plots do not
+infer or display uncertainty bars; split-level BIPED values remain available
+in the machine-readable evidence.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def first_existing(*paths: Path) -> Path:
@@ -27,13 +28,14 @@ def first_existing(*paths: Path) -> Path:
     raise FileNotFoundError("None of the expected result files exists:\n" + "\n".join(map(str, paths)))
 
 
-PUBLIC_TABLES = ROOT / "docs" / "results" / "strict"
-OUT = ROOT / "figures" / "results" / "joint_metrics"
+PRIVATE_TABLES = ROOT / "edge_outputs" / "rbcm" / "tables"
+OUT = ROOT / "edge_outputs" / "rbcm" / "figures" / "publication" / "results" / "joint_metrics"
 BIPED_TABLE = first_existing(
-    PUBLIC_TABLES / "biped" / "stability_splits.csv",
-    PUBLIC_TABLES / "biped" / "stability.csv",
+    PRIVATE_TABLES / "biped_stability_ap_corrected.csv",
 )
-STRICT_TABLE = PUBLIC_TABLES / "tables" / "same_domain_strict.csv"
+STRICT_TABLE = first_existing(
+    PRIVATE_TABLES / "strict_protocols" / "same_domain_strict.csv",
+)
 AP_DEFINITION = "endpoint-complete precision-envelope AP"
 
 MODE_ORDER = ["plain_identity", "no_surround", "conv_control", "main_surround"]
@@ -152,9 +154,30 @@ def export(fig: plt.Figure, stem: str) -> None:
     plt.close(fig)
 
 
-def plot_biped() -> pd.DataFrame:
+def load_biped_means() -> pd.DataFrame:
     source = pd.read_csv(BIPED_TABLE)
-    source = source.set_index("mode").loc[MODE_ORDER].reset_index()
+    if {"split", "mode", "ODS", "OIS", "AP"}.issubset(source.columns):
+        return (
+            source[source["mode"].isin(MODE_ORDER)]
+            .groupby("mode", as_index=False)[METRICS]
+            .mean()
+            .set_index("mode")
+            .loc[MODE_ORDER]
+            .reset_index()
+        )
+    return source.set_index("mode").loc[MODE_ORDER].reset_index()
+
+
+def biped_score(row: pd.Series, metric: str) -> float:
+    direct = metric
+    aggregate = f"{metric}_mean"
+    if direct in row.index:
+        return float(row[direct])
+    return float(row[aggregate])
+
+
+def plot_biped() -> pd.DataFrame:
+    source = load_biped_means()
     x = np.arange(len(MODE_ORDER), dtype=float)
     offsets = {"ODS": -0.22, "OIS": 0.0, "AP": 0.22}
     rows: list[dict[str, object]] = []
@@ -164,42 +187,32 @@ def plot_biped() -> pd.DataFrame:
 
     for model_index, row in source.iterrows():
         for metric in METRICS:
-            values = np.asarray([float(value) for value in str(row[f"{metric}_values"]).split(";")])
-            mean = float(row[f"{metric}_mean"])
-            std = float(row[f"{metric}_std"])
+            mean = biped_score(row, metric)
             xpos = x[model_index] + offsets[metric]
-            jitter = np.linspace(-0.035, 0.035, len(values))
             color = METRIC_COLORS[metric]
 
-            ax.scatter(
-                xpos + jitter,
-                values,
-                s=25,
+            ax.hlines(
+                mean,
+                xpos - 0.075,
+                xpos + 0.075,
                 color=color,
-                alpha=0.58,
-                edgecolor="white",
-                linewidth=0.55,
+                linewidth=2.2,
                 zorder=3,
             )
-            ax.errorbar(
+            ax.scatter(
                 xpos,
                 mean,
-                yerr=std,
-                fmt="D",
-                markersize=6.2,
+                marker="D",
+                s=50,
                 color=color,
-                ecolor=color,
-                elinewidth=1.8,
-                capsize=4.0,
-                capthick=1.6,
-                markeredgecolor="white",
-                markeredgewidth=0.65,
+                edgecolor="white",
+                linewidth=0.65,
                 zorder=4,
             )
             ax.text(
                 xpos,
-                mean + std + 0.0022,
-                f"{mean:.3f}",
+                mean + 0.0022,
+                f"{mean:.4f}",
                 ha="center",
                 va="bottom",
                 color=color,
@@ -212,10 +225,8 @@ def plot_biped() -> pd.DataFrame:
                     "mode": row["mode"],
                     "metric": metric,
                     "mean": mean,
-                    "std": std,
-                    "values": ";".join(f"{value:.6f}" for value in values),
-                    "n_runs": len(values),
-                    "display": "raw split points, mean diamond, +/-1 sample SD",
+                    "n_runs": 3,
+                    "display": "arithmetic mean across three fixed splits",
                     "ap_definition": AP_DEFINITION,
                 }
             )
@@ -228,14 +239,14 @@ def plot_biped() -> pd.DataFrame:
     ax.text(
         0.01,
         0.018,
-        "Small circles: fixed splits   Diamond: mean   Whisker: +/-1 SD   AP: endpoint-complete envelope",
+        "Arithmetic mean of three fixed splits; AP uses endpoint-complete envelope",
         transform=ax.transAxes,
         color=MUTED,
         fontsize=9.2,
         ha="left",
         va="bottom",
     )
-    finish_layout(fig, handles, "BIPED: joint ODS, OIS and AP across three fixed splits")
+    finish_layout(fig, handles, "BIPED: validation-frozen ODS, OIS and AP")
     export(fig, "11_biped_joint_ods_ois_ap")
     return pd.DataFrame(rows)
 
@@ -270,7 +281,7 @@ def plot_multicue() -> pd.DataFrame:
             ax.text(
                 xpos,
                 score + 0.0040,
-                f"{score:.3f}",
+                f"{score:.4f}",
                 ha="center",
                 va="bottom",
                 color=color,
@@ -313,8 +324,7 @@ def plot_multicue() -> pd.DataFrame:
 
 
 def plot_biped_metric_grouped() -> pd.DataFrame:
-    source = pd.read_csv(BIPED_TABLE)
-    source = source.set_index("mode").loc[MODE_ORDER]
+    source = load_biped_means().set_index("mode")
     offsets = dict(zip(MODE_ORDER, [-0.27, -0.09, 0.09, 0.27]))
     rows: list[dict[str, object]] = []
 
@@ -324,42 +334,32 @@ def plot_biped_metric_grouped() -> pd.DataFrame:
     for metric_index, metric in enumerate(METRICS):
         for mode in MODE_ORDER:
             row = source.loc[mode]
-            values = np.asarray([float(value) for value in str(row[f"{metric}_values"]).split(";")])
-            mean = float(row[f"{metric}_mean"])
-            std = float(row[f"{metric}_std"])
+            mean = biped_score(row, metric)
             xpos = metric_index + offsets[mode]
-            jitter = np.linspace(-0.024, 0.024, len(values))
             color = MODEL_COLORS[mode]
 
-            ax.scatter(
-                xpos + jitter,
-                values,
-                s=25,
+            ax.hlines(
+                mean,
+                xpos - 0.060,
+                xpos + 0.060,
                 color=color,
-                alpha=0.58,
-                edgecolor="white",
-                linewidth=0.55,
+                linewidth=2.2,
                 zorder=3,
             )
-            ax.errorbar(
+            ax.scatter(
                 xpos,
                 mean,
-                yerr=std,
-                fmt="D",
-                markersize=6.2,
+                marker="D",
+                s=50,
                 color=color,
-                ecolor=color,
-                elinewidth=1.8,
-                capsize=4.0,
-                capthick=1.6,
-                markeredgecolor="white",
-                markeredgewidth=0.65,
+                edgecolor="white",
+                linewidth=0.65,
                 zorder=4,
             )
             ax.text(
                 xpos,
-                mean + std + 0.0020,
-                f"{mean:.3f}",
+                mean + 0.0020,
+                f"{mean:.4f}",
                 ha="center",
                 va="bottom",
                 color=color,
@@ -372,10 +372,8 @@ def plot_biped_metric_grouped() -> pd.DataFrame:
                     "metric": metric,
                     "mode": mode,
                     "mean": mean,
-                    "std": std,
-                    "values": ";".join(f"{value:.6f}" for value in values),
-                    "n_runs": len(values),
-                    "display": "metric-grouped raw split points, mean diamond, +/-1 sample SD",
+                    "n_runs": 3,
+                    "display": "metric-grouped arithmetic mean across three fixed splits",
                     "ap_definition": AP_DEFINITION,
                 }
             )
@@ -390,14 +388,14 @@ def plot_biped_metric_grouped() -> pd.DataFrame:
     ax.text(
         0.01,
         0.018,
-        "Small circles: fixed splits   Diamond: mean   Whisker: +/-1 SD   AP: endpoint-complete envelope",
+        "Arithmetic mean of three fixed splits; AP uses endpoint-complete envelope",
         transform=ax.transAxes,
         color=MUTED,
         fontsize=9.2,
         ha="left",
         va="bottom",
     )
-    finish_metric_layout(fig, handles, "BIPED: four ablation models grouped by evaluation metric")
+    finish_metric_layout(fig, handles, "BIPED: validation-frozen ablations by metric")
     export(fig, "13_biped_metric_grouped_models")
     return pd.DataFrame(rows)
 
@@ -432,7 +430,7 @@ def plot_multicue_metric_grouped() -> pd.DataFrame:
             ax.text(
                 xpos,
                 score + 0.0038,
-                f"{score:.3f}",
+                f"{score:.4f}",
                 ha="center",
                 va="bottom",
                 color=color,
@@ -482,7 +480,7 @@ def write_manifest() -> None:
             "figure": "11_biped_joint_ods_ois_ap",
             "dataset": "BIPED",
             "source": BIPED_TABLE.relative_to(ROOT).as_posix(),
-            "interpretation": "Three fixed splits; AP uses endpoint-complete precision-envelope integration.",
+            "interpretation": "Arithmetic mean of three validation-frozen, mode-specific fixed splits.",
         },
         {
             "figure": "12_multicue_joint_ods_ois_ap",
@@ -494,7 +492,7 @@ def write_manifest() -> None:
             "figure": "13_biped_metric_grouped_models",
             "dataset": "BIPED",
             "source": BIPED_TABLE.relative_to(ROOT).as_posix(),
-            "interpretation": "Metrics define the x-axis groups; AP is endpoint-complete and precision-enveloped.",
+            "interpretation": "Metrics define the x-axis groups; scores are validation-frozen three-split means.",
         },
         {
             "figure": "14_multicue_metric_grouped_models",
@@ -513,7 +511,7 @@ def write_readmes() -> None:
     """Write notes for the current strict paper-facing figures."""
     zh = """# BIPED 与 MultiCue 三指标联合消融图
 
-- `11_biped_joint_ods_ois_ap`：四种模型各自同时显示 ODS、OIS 和 AP。小圆点表示三个固定划分，菱形表示均值，误差线表示正负一个样本标准差。
+- `11_biped_joint_ods_ois_ap`：四种模型各自同时显示 ODS、OIS 和 AP。BIPED 只报告三个固定划分的算术平均，不在正文图中绘制标准差。
 - `12_multicue_joint_ods_ois_ap`：显示严格 68/12/20 独立协议下的精确分数。该协议只有一个随机种子，不虚构误差线。
 - `13_biped_metric_grouped_models`：横轴改为 ODS、OIS 和 AP，每组内并列四种模型。
 - `14_multicue_metric_grouped_models`：采用同样的指标分组布局，使用一次性独立测试的精确分数。
@@ -521,7 +519,7 @@ def write_readmes() -> None:
 """
     en = """# Joint BIPED and MultiCue ablation metrics
 
-- `11_biped_joint_ods_ois_ap` shows ODS, OIS, and AP for Anchor, No surround, Conv control, and H-RBCM. Small circles are the three fixed-split values, diamonds are means, and whiskers are +/-1 sample SD.
+- `11_biped_joint_ods_ois_ap` shows the arithmetic mean of three fixed splits for Anchor, No surround, Conv control, and H-RBCM. The paper-facing figure does not display standard deviations.
 - `12_multicue_joint_ods_ois_ap` uses the strict 68/12/20 source-disjoint protocol. It has one seed, so exact scores are shown without invented error bars.
 - `13_biped_metric_grouped_models` switches the x-axis to ODS, OIS, and AP, with four models offset inside each metric group.
 - `14_multicue_metric_grouped_models` uses the same metric-grouped layout and exact one-pass held-out scores.

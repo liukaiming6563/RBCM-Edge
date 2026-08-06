@@ -51,7 +51,7 @@ def main() -> None:
         run("scripts/analysis/build_formal_result_index.py")
         run("scripts/analysis/build_strict_protocol_tables.py")
     if "figures" in stages:
-        run("scripts/analysis/plot_joint_ablation_metrics.py")
+        run("scripts/figures/edge/plot_joint_ablation_metrics.py")
 
 
 if __name__ == "__main__":

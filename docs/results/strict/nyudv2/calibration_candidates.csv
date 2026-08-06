@@ -1,4 +1,0 @@
-alpha,bias,edge_weight,mode,prob_weight,ring,selection_count,selection_dataset,selection_summary,sharpen,split,temperature,uncertainty_power
--2.6,-0.18,0.8,main_surround,0.2,1-7-7-17,414,NYUDv2,results\rbcm\predictions\nyudv2_strict_seed4517_20260724_formal_retry\summary.json,-1.25,val,0.92,0.7
--1.2,0.0,1.0,no_surround,0.0,3-9-9-21,414,NYUDv2,results\rbcm\predictions\nyudv2_strict_seed4517_20260724_formal_retry\summary.json,-0.35,val,1.0,0.55
--1.2,0.0,0.8,conv_control,0.2,5-11-11-25,414,NYUDv2,results\rbcm\predictions\nyudv2_strict_seed4517_20260724_formal_retry\summary.json,-0.35,val,0.88,0.85

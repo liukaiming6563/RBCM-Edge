@@ -6,7 +6,7 @@ device: cuda
 paths:
   project_root: .
   edge_data_root: edge_data/official_rbcm
-  output_root: results/rbcm/training/multicue
+  output_root: edge_outputs/rbcm/training/multicue
 
 paper_protocol:
   name: MultiCue fixed source-disjoint 68/12/20 confirmation
@@ -71,38 +71,9 @@ model:
   in_channels: 3
   feature_channels: 48
   decoder_channels: 64
-  rbcm_reduction: 2
   norm: gn
   gn_groups: 8
   activation: relu
-  ring_token_extractor:
-    directions: 8
-    compute_stride: 4
-    token_channels: 24
-    kernel_size: 5
-    sigma: 1.6
-    sector_group_sigma_angle: 0.35
-    orientation_temperature: 0.25
-    rings:
-    - [3, 7]
-    - [7, 15]
-    - [15, 31]
-  surround_attention:
-    query_channels: 24
-    value_channels: 24
-  modulation:
-    gate_temperature: 1.5
-    alpha_init: 0.035
-    alpha_max: 0.18
-    gate_bias_init: -2.6
-    mix_bias_init: [-0.05, -0.18, 0.28]
-    interaction_bottleneck_channels: 160
-    interaction_terms: 8
-    anchor_alpha_init: 0.065
-    anchor_alpha_max: 0.3
-    residual_alpha_init: 0.015
-    residual_alpha_max: 0.18
-    residual_gate_bias_init: -3.0
 
 loss:
   target_threshold: 0.5
@@ -170,7 +141,7 @@ train:
   checkpoint_interval_steps: 500
   periodic_checkpoint_minutes: 60.0
   periodic_checkpoint_keep: 3
-  stop_file: results/rbcm/training/multicue/multicue_strict_seed4517/STOP
+  stop_file: edge_outputs/rbcm/training/multicue/multicue_strict_seed4517/STOP
 
 eval:
   save_predictions: false

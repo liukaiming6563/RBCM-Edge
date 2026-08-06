@@ -1,4 +1,4 @@
-# Python cache and local environments
+# Python caches and local environments
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -8,24 +8,24 @@ __pycache__/
 venv/
 .local_pkgs/
 
-# Downloaded large assets
+# Separately distributed inputs and weights
 /MEA_data/
 /edge_data/
 /pretrained/
 
-# Generated outputs
-/outputs/
+# All generated analyses, predictions, tables, and figures
 /MEA_outputs/
 /edge_outputs/
+/outputs/
 /results/
-/docs/results/reproduced/
-/figures/results/joint_metrics/
+/figures/
+/reproduced/
 /checkpoints/
 /logs/
 /runs/
 /wandb/
 
-# Model artifacts and generated figures
+# Model artifacts and binary scientific data
 *.pt
 *.pth
 *.ckpt
@@ -34,8 +34,14 @@ venv/
 *.npy
 *.h5
 *.mat
-*.mp4
-*.avi
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.docx
+*.xlsx
+*.csv
+*.json
 *.log
 *.zip
 *.tar
@@ -44,13 +50,11 @@ venv/
 *.rar
 *.7z
 
-# OS and editor files
+# Local history, scratch files, and workspace instructions
+/backup/
+/tmp/
+/AGENTS.md
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
-
-# Local backups and workspace instructions
-/backup/
-/tmp/
-/AGENTS.md

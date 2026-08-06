@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("results/rbcm/audits/nyudv2_strict_20260724"),
+        default=Path("edge_outputs/rbcm/audits/nyudv2_strict_20260724"),
     )
     return parser.parse_args()
 
@@ -422,17 +422,21 @@ def audit_config(audit: Audit, config: dict, config_path: Path) -> dict:
 
 def markdown_report(payload: dict, chinese: bool) -> str:
     title = "NYUDv2 严格训练协议审计" if chinese else "NYUDv2 Strict Training Protocol Audit"
-    status_label = "总状态" if chinese else "Overall status"
+    status_label = "总体状态" if chinese else "Overall status"
     check_label = "检查项" if chinese else "Check"
     detail_label = "证据" if chinese else "Evidence"
+    config_label = "配置" if chinese else "Config"
+    split_label = "划分" if chinese else "Split"
+    augmentation_label = "增广" if chinese else "Augmentation"
+    evaluation_label = "最终 NYUD 评估" if chinese else "Final NYUD evaluation"
     lines = [
         f"# {title}",
         "",
         f"- {status_label}: **{payload['status']}**",
-        f"- Config: `{payload['runtime']['config']}`",
-        "- Split: `381 train / 414 validation / 654 test`",
-        "- Augmentation: `3 scales x 4 rotations x 2 flips = 24` (train only)",
-        "- Final NYUD evaluation: `NMS + 99 thresholds + maxDist 0.011`",
+        f"- {config_label}: `{payload['runtime']['config']}`",
+        f"- {split_label}: `381 train / 414 validation / 654 test`",
+        f"- {augmentation_label}: `3 scales x 4 rotations x 2 flips = 24` (train only)",
+        f"- {evaluation_label}: `NMS + 99 thresholds + maxDist 0.011`",
         "",
         f"| {check_label} | Status | {detail_label} |",
         "|---|---:|---|",

@@ -27,6 +27,6 @@ numbers as if they were identical.
 ## Assets
 
 - Configs: `edge_model/configs/rbcm`
-- Weights and fixed calibration rows: `weights/rbcm`
-- Results: `results/rbcm`
+- Weights and fixed calibration rows: `edge_outputs/rbcm/checkpoints`
+- Results: `edge_outputs/rbcm`
 - Documentation: `docs/edge/en`

@@ -6,15 +6,15 @@ surround-to-center logit calibration parameters on an explicitly selected
 validation split. Paper-facing runs must freeze the selected candidates before
 the independent test split is read.
 
-The goal is to determine whether a clean, validation-selected annular surround
-calibration can produce a materially larger gap than the learned plugin-style
-RBCM variants.
+The goal is to compare a clean, validation-selected annular surround
+calibration with parameter-budget-matched calibration controls.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import random
@@ -37,6 +37,7 @@ if str(SRC_ROOT) not in sys.path:
 from edge_model.core.checkpoint_io import load_checkpoint
 from edge_model.core.config import deep_update, load_config, project_path
 from edge_model.data.build import make_dataset, make_loader
+from edge_model.engine.metrics import edge_metrics_from_arrays
 from edge_model.engine.train_loop import load_original_target_array, restore_sample_array
 from edge_model.engine.visualize import save_probability_map
 from edge_model.models.build import build_model
@@ -106,8 +107,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-split", default="test")
     parser.add_argument(
         "--grid-profile",
-        choices=["default", "focused_main", "focused_main_strong", "focused_main_refine"],
+        choices=[
+            "default",
+            "fair_shared",
+            "focused_main",
+            "focused_main_strong",
+            "focused_main_refine",
+        ],
         default="default",
+    )
+    parser.add_argument(
+        "--metric-backend",
+        choices=["dilation", "greedy_one_to_one", "strict_kdtree"],
+        default="dilation",
+        help=(
+            "Validation and test metric backend. 'dilation' preserves the historical "
+            "near-official protocol; 'greedy_one_to_one' is a distance-prioritized "
+            "one-to-one tolerant sensitivity analysis and is not the exact Matlab "
+            "BSDS matcher. 'strict_kdtree' remains a backward-compatible alias."
+        ),
     )
     parser.add_argument("--save-test-predictions", action="store_true")
     parser.add_argument(
@@ -135,22 +153,34 @@ def infer_dataset_name(config: dict, requested: str) -> str:
 def load_config_for_eval(config_path: Path, checkpoint: dict, args: argparse.Namespace) -> dict:
     base = load_config(config_path)
     checkpoint_config = checkpoint.get("config", base)
+    base_paths = base.get("paths", {})
+    base_dataset = base.get("dataset", {})
+    dataset_override = {
+        key: base_dataset[key]
+        for key in (
+            "train_dataset",
+            "val_dataset",
+            "eval_dataset",
+            "train_split",
+            "val_split",
+            "eval_split",
+            "split_files",
+            "input_size",
+            "native_size_eval",
+            "preserve_aspect_eval",
+            "gt",
+        )
+        if key in base_dataset
+    }
+    dataset_override["preserve_aspect_eval"] = True
     merged = deep_update(
         checkpoint_config,
         {
             "paths": {
                 "project_root": str(PROJECT_ROOT),
-                "edge_data_root": checkpoint_config.get("paths", {}).get("edge_data_root", "edge_data"),
+                "edge_data_root": base_paths.get("edge_data_root", "edge_data"),
             },
-            "dataset": {
-                "input_size": checkpoint_config.get("dataset", {}).get("input_size", 300),
-                "preserve_aspect_eval": True,
-                "gt": {
-                    "eval_variant": checkpoint_config.get("dataset", {}).get("gt", {}).get("eval_variant", "edge"),
-                    "eval_mode": checkpoint_config.get("dataset", {}).get("gt", {}).get("eval_mode", "soft"),
-                    "binarize_eval_edges": False,
-                },
-            },
+            "dataset": dataset_override,
             "loader": {
                 "batch_size": int(args.batch_size),
                 "num_workers": int(args.num_workers),
@@ -165,6 +195,8 @@ def load_config_for_eval(config_path: Path, checkpoint: dict, args: argparse.Nam
     if getattr(args, "eval_gt_mode", None):
         gt_config["eval_mode"] = str(args.eval_gt_mode)
         gt_config["binarize_eval_edges"] = str(args.eval_gt_mode) == "binary"
+    elif "binarize_eval_edges" not in gt_config:
+        gt_config["binarize_eval_edges"] = str(gt_config.get("eval_mode", "soft")) == "binary"
     return merged
 
 
@@ -306,15 +338,9 @@ def apply_candidate(sample: dict[str, np.ndarray | str], candidate: Candidate) -
     edge = sample["edge"]  # type: ignore[assignment]
     assert isinstance(prob, np.ndarray)
     assert isinstance(edge, np.ndarray)
-    prob_state, edge_state = cached_states(sample, candidate)
-    state = candidate.edge_weight * edge_state + candidate.prob_weight * prob_state
-    state = np.clip(state, -1.0, 1.0)
-    uncertainty = sample.get("_uncertainty")
-    if not isinstance(uncertainty, np.ndarray):
-        uncertainty = np.clip(4.0 * prob * (1.0 - prob), 0.0, 1.0)
-        sample["_uncertainty"] = uncertainty
-    if candidate.uncertainty_power != 1.0:
-        uncertainty = np.power(np.clip(uncertainty, 0.0, 1.0), candidate.uncertainty_power)
+    if candidate.mode == "plain_identity":
+        return prob.astype(np.float32, copy=False)
+
     base = sample.get("_logit")
     if not isinstance(base, np.ndarray):
         base = logit(prob)
@@ -326,6 +352,18 @@ def apply_candidate(sample: dict[str, np.ndarray | str], candidate: Candidate) -
             local_diff = prob - blur(prob, 3)
             sample["_local_diff"] = local_diff
         base_logit = base_logit + candidate.sharpen * local_diff
+    if candidate.mode == "calibrated_identity":
+        return sigmoid(base_logit)
+
+    prob_state, edge_state = cached_states(sample, candidate)
+    state = candidate.edge_weight * edge_state + candidate.prob_weight * prob_state
+    state = np.clip(state, -1.0, 1.0)
+    uncertainty = sample.get("_uncertainty")
+    if not isinstance(uncertainty, np.ndarray):
+        uncertainty = np.clip(4.0 * prob * (1.0 - prob), 0.0, 1.0)
+        sample["_uncertainty"] = uncertainty
+    if candidate.uncertainty_power != 1.0:
+        uncertainty = np.power(np.clip(uncertainty, 0.0, 1.0), candidate.uncertainty_power)
     return sigmoid(base_logit + candidate.alpha * uncertainty * state)
 
 
@@ -410,18 +448,31 @@ def metric_for_probs(
     apply_nms: bool,
     device: str,
     gt_threshold: float = 0.0,
+    metric_backend: str = "dilation",
 ) -> dict[str, float]:
     probs = probabilities
     if apply_nms:
         probs = maybe_nms(probs, device_name=device, low_threshold=nms_low_threshold)
     threshold_values = np.linspace(0.01, 0.99, max(2, int(thresholds)))
-    metrics, _ = dilation_metrics_from_arrays(
-        probs,
-        targets,
-        threshold_values,
-        match_tolerance=match_tolerance,
-        gt_threshold=float(gt_threshold),
-    )
+    if metric_backend in {"greedy_one_to_one", "strict_kdtree"}:
+        binary_targets = [
+            np.asarray(target > float(gt_threshold), dtype=np.float32)
+            for target in targets
+        ]
+        metrics = edge_metrics_from_arrays(
+            probs,
+            binary_targets,
+            thresholds=threshold_values,
+            match_tolerance=match_tolerance,
+        )
+    else:
+        metrics, _ = dilation_metrics_from_arrays(
+            probs,
+            targets,
+            threshold_values,
+            match_tolerance=match_tolerance,
+            gt_threshold=float(gt_threshold),
+        )
     return {key: float(value) for key, value in metrics.items() if isinstance(value, (float, int))}
 
 
@@ -507,7 +558,25 @@ def proxy_metric_for_probs(
 
 
 def candidate_grid(mode: str, profile: str = "default") -> Iterable[Candidate]:
-    if profile == "focused_main_refine" and mode == "main_surround":
+    if profile == "fair_shared" and mode == "calibrated_identity":
+        rings = ["1-5-5-15"]
+        alphas = [0.0]
+        uncertainty_powers = [1.0]
+        temperatures = [0.75, 0.80, 0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15, 1.20, 1.25]
+        biases = [-0.25, -0.20, -0.15, -0.10, -0.05, 0.0, 0.05, 0.10, 0.15, 0.20, 0.25]
+        sharpens = [-1.50, -1.20, -0.90, -0.60, -0.30, 0.0, 0.30, 0.60, 0.90, 1.20, 1.50]
+        weights = [(0.0, 0.0)]
+    elif profile == "fair_shared":
+        # Structural modes receive identical candidate tuples, budgets, and
+        # deterministic sampling order. Only the surround operator differs.
+        rings = ["1-5-5-15", "1-7-7-17", "3-9-9-21", "5-11-11-25"]
+        alphas = [-4.20, -3.30, -2.40, -1.50, -0.60, 0.60, 1.50, 2.40, 3.30, 4.20]
+        uncertainty_powers = [0.20, 0.50, 1.00, 1.40]
+        temperatures = [0.84, 0.92, 1.00, 1.08]
+        biases = [-0.24, -0.12, 0.0, 0.12, 0.24]
+        sharpens = [-1.25, -0.75, -0.35, 0.0, 0.35, 0.75, 1.25]
+        weights = [(1.00, 0.00), (0.80, 0.20), (0.60, 0.40), (0.40, 0.60)]
+    elif profile == "focused_main_refine" and mode == "main_surround":
         rings = ["1-7-7-17", "3-7-7-17"]
         alphas = [-4.20, -4.00, -3.80, -3.60, -3.40, -3.20]
         uncertainty_powers = [0.15, 0.20, 0.25, 0.30]
@@ -577,6 +646,7 @@ def evaluate_candidate(
         apply_nms=apply_nms,
         device=args.device,
         gt_threshold=args.gt_threshold,
+        metric_backend=args.metric_backend,
     )
     return {**asdict(candidate), **metrics}
 
@@ -604,9 +674,22 @@ def search_mode(
     args: argparse.Namespace,
 ) -> tuple[Candidate, dict[str, float | str], list[dict[str, float | str]]]:
     coarse_rows: list[dict[str, float | str]] = []
-    candidates = list(candidate_grid(mode, profile=str(args.grid_profile)))
-    rng = random.Random(int(args.search_seed) + sum(ord(ch) for ch in mode))
-    rng.shuffle(candidates)
+    if str(args.grid_profile) == "fair_shared":
+        rng = random.Random(int(args.search_seed))
+        budget = max(1, int(args.max_val_candidates))
+        candidates: list[Candidate] = []
+        for index, candidate in enumerate(candidate_grid(mode, profile=str(args.grid_profile))):
+            if index < budget:
+                candidates.append(candidate)
+                continue
+            replacement = rng.randint(0, index)
+            if replacement < budget:
+                candidates[replacement] = candidate
+        rng.shuffle(candidates)
+    else:
+        candidates = list(candidate_grid(mode, profile=str(args.grid_profile)))
+        rng = random.Random(int(args.search_seed) + sum(ord(ch) for ch in mode))
+        rng.shuffle(candidates)
     for index, candidate in enumerate(candidates):
         if index >= int(args.max_val_candidates):
             break
@@ -707,6 +790,7 @@ def main() -> None:
         apply_nms=True,
         device=args.device,
         gt_threshold=args.gt_threshold,
+        metric_backend=args.metric_backend,
     )
     summary_rows: list[dict[str, float | str]] = [
         {"mode": "plain_identity", "split": "val", **baseline_val},
@@ -722,6 +806,7 @@ def main() -> None:
             apply_nms=True,
             device=args.device,
             gt_threshold=args.gt_threshold,
+            metric_backend=args.metric_backend,
         )
         summary_rows.append({"mode": "plain_identity", "split": "test", **baseline_test})
     selected: dict[str, dict[str, object]] = {}
@@ -755,7 +840,15 @@ def main() -> None:
         if test_samples:
             clear_candidate_caches(test_samples)
 
-    write_csv(args.output_dir / "summary.csv", summary_rows)
+    summary_path = args.output_dir / "summary.csv"
+    frozen_path = args.output_dir / "frozen_candidates.csv"
+    write_csv(summary_path, summary_rows)
+    write_csv(frozen_path, [row for row in summary_rows if row.get("split") == "val"])
+    frozen_hash = hashlib.sha256(frozen_path.read_bytes()).hexdigest()
+    (args.output_dir / "CANDIDATES_FROZEN.sha256").write_text(
+        f"{frozen_hash}  {frozen_path.as_posix()}\n",
+        encoding="ascii",
+    )
     report = {
         "dataset_name": dataset_name,
         "selection_only": bool(args.selection_only),
@@ -768,6 +861,10 @@ def main() -> None:
         "eval_gt_variant": config.get("dataset", {}).get("gt", {}).get("eval_variant"),
         "eval_gt_mode": config.get("dataset", {}).get("gt", {}).get("eval_mode"),
         "gt_threshold": float(args.gt_threshold),
+        "grid_profile": str(args.grid_profile),
+        "metric_backend": str(args.metric_backend),
+        "max_val_candidates": int(args.max_val_candidates),
+        "search_seed": int(args.search_seed),
         "baseline": {"val": baseline_val, "test": baseline_test},
         "selected": selected,
     }

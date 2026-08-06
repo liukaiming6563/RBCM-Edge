@@ -444,7 +444,7 @@ def main(args: argparse.Namespace) -> None:
         device_name = "cpu"
     device = torch.device(device_name)
 
-    output_root = project_path(config, config["paths"].get("output_root", "results/rbcm/runs"))
+    output_root = project_path(config, config["paths"].get("output_root", "edge_outputs/rbcm/runs"))
     run_paths = make_run_paths(output_root, config.get("experiment_name", "edge_experiment"))
     save_config(run_paths.root / "config.yaml", config)
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gc
 import json
 import sys
 from dataclasses import asdict
@@ -40,7 +41,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--checkpoint", required=True, type=Path)
-    parser.add_argument("--candidate-csv", required=True, action="append", type=Path)
+    parser.add_argument(
+        "--candidate-csv",
+        required=True,
+        action="append",
+        type=Path,
+        help=(
+            "Frozen validation-selected candidate table, preferably "
+            "frozen_candidates.csv (or the backward-compatible summary.csv). "
+            "Do not pass a *_val_top_refined.csv ranking file."
+        ),
+    )
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--source-label", required=True)
     parser.add_argument("--dataset-name", required=True)
@@ -72,6 +83,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-gt-variant", default="edge")
     parser.add_argument("--eval-gt-mode", choices=["binary", "soft"], default="binary")
     parser.add_argument("--nms-low-threshold", type=float, default=0.02)
+    parser.add_argument(
+        "--metric-backend",
+        choices=["dilation", "greedy_one_to_one", "strict_kdtree"],
+        default="dilation",
+    )
     parser.add_argument("--modes", nargs="+", default=["main_surround", "no_surround", "conv_control"])
     parser.add_argument("--candidate-split", default="val")
     parser.add_argument("--save-predictions", action="store_true")
@@ -97,6 +113,10 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 
 def load_candidates(paths: list[Path], modes: list[str], split: str) -> dict[str, Candidate]:
+    def value_or_default(row: dict[str, str], key: str, default: float) -> float:
+        value = str(row.get(key, "")).strip()
+        return default if not value else float(value)
+
     wanted = set(modes)
     selected: dict[str, Candidate] = {}
     for path in paths:
@@ -108,14 +128,14 @@ def load_candidates(paths: list[Path], modes: list[str], split: str) -> dict[str
                     continue
                 selected[mode] = Candidate(
                     mode=mode,
-                    ring=str(row["ring"]),
-                    alpha=float(row["alpha"]),
-                    edge_weight=float(row["edge_weight"]),
-                    prob_weight=float(row["prob_weight"]),
-                    uncertainty_power=float(row["uncertainty_power"]),
-                    temperature=float(row["temperature"]),
-                    bias=float(row["bias"]),
-                    sharpen=float(row["sharpen"]),
+                    ring=str(row.get("ring", "")).strip() or "3-7-7-11",
+                    alpha=value_or_default(row, "alpha", 0.0),
+                    edge_weight=value_or_default(row, "edge_weight", 0.0),
+                    prob_weight=value_or_default(row, "prob_weight", 0.0),
+                    uncertainty_power=value_or_default(row, "uncertainty_power", 1.0),
+                    temperature=value_or_default(row, "temperature", 1.0),
+                    bias=value_or_default(row, "bias", 0.0),
+                    sharpen=value_or_default(row, "sharpen", 0.0),
                 )
     missing = [mode for mode in modes if mode not in selected]
     if missing:
@@ -157,6 +177,7 @@ def evaluate_probs(
         apply_nms=True,
         device=str(args.device),
         gt_threshold=float(args.gt_threshold),
+        metric_backend=str(args.metric_backend),
     )
 
 
@@ -219,6 +240,9 @@ def main() -> None:
 
     selected_report: dict[str, dict[str, object]] = {}
     for mode, candidate in candidates.items():
+        if mode == "plain_identity":
+            selected_report[mode] = asdict(candidate)
+            continue
         if args.skip_internal_metrics:
             probs = []
             metrics = {}
@@ -247,6 +271,11 @@ def main() -> None:
         selected_report[mode] = asdict(candidate)
         if args.save_predictions and not args.skip_internal_metrics:
             save_probs(samples, probs, args.output_dir / "predictions" / mode)
+        if not args.skip_internal_metrics:
+            del probs
+            for sample in samples:
+                clear_transient_state(sample)
+            gc.collect()
 
     write_csv(args.output_dir / "summary.csv", rows)
     report = {
@@ -257,6 +286,7 @@ def main() -> None:
         "config": str(args.config),
         "candidate_csv": [str(path) for path in args.candidate_csv],
         "candidate_split": args.candidate_split,
+        "metric_backend": args.metric_backend,
         "n_samples": len(samples),
         "selected_candidates": selected_report,
         "rows": rows,

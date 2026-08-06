@@ -117,7 +117,7 @@ def main(args: argparse.Namespace) -> None:
     )
     loader = make_loader(dataset, config, shuffle=False)
 
-    output_root = project_path(config, config["paths"].get("output_root", "results/rbcm/runs"))
+    output_root = project_path(config, config["paths"].get("output_root", "edge_outputs/rbcm/runs"))
     run_paths = make_run_paths(output_root, config.get("experiment_name", "eval"))
     save_config(run_paths.root / "config.yaml", config)
     loss_cfg = checkpoint_config.get("loss", config.get("loss", {}))

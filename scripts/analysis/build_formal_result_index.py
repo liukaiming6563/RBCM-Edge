@@ -1,8 +1,9 @@
 """Build the canonical machine-readable H-RBCM result index.
 
-The index keeps protocol status and evidence provenance beside every score so
-that paper tables cannot silently mix strict, descriptive, and transfer
-results.
+The index separates the paper's original, structure-appropriate
+validation-selection strategy from the equal-budget sensitivity analysis.
+Every paper-facing candidate is selected on validation data and frozen before
+the corresponding test or transfer evaluation.
 """
 
 from __future__ import annotations
@@ -14,51 +15,45 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PRIVATE_LAYOUT = (ROOT / "paper_assets").is_dir()
-OUT_ROOT = (
-    ROOT / "paper_assets" / "rbcm" / "tables" / "formal_index"
-    if PRIVATE_LAYOUT
-    else ROOT / "docs" / "results" / "reproduced" / "formal_index"
+RBCM_OUTPUT_ROOT = ROOT / "edge_outputs" / "rbcm"
+OUT_ROOT = RBCM_OUTPUT_ROOT / "tables" / "formal_index"
+RESULT_OUT_ROOT = RBCM_OUTPUT_ROOT / "scores"
+
+PRIMARY_SAME_PATH = RBCM_OUTPUT_ROOT / "scores" / "self_test.csv"
+BIPED_STABILITY_PATH = RBCM_OUTPUT_ROOT / "scores" / "biped_stability.csv"
+FAIR_PRIMARY_PATH = (
+    RBCM_OUTPUT_ROOT
+    / "reanalysis"
+    / "fair_eval_20260729"
+    / "summary"
+    / "fair_primary_results.csv"
 )
-RESULT_OUT_ROOT = (
-    ROOT / "results" / "rbcm" / "scores"
-    if PRIVATE_LAYOUT
-    else ROOT / "docs" / "results" / "reproduced" / "scores"
+MULTICUE_TRANSFER_ROOT = (
+    RBCM_OUTPUT_ROOT
+    / "reanalysis"
+    / "original_strategy_20260729"
 )
-BIPED_PATH = next(
-    path
-    for path in (
-        ROOT / "paper_assets" / "rbcm" / "tables" / "two_dataset_core" / "01_biped_stability.csv",
-        ROOT / "docs" / "results" / "strict" / "biped" / "stability.csv",
-    )
-    if path.is_file()
+NYUD_TRANSFER_PATH = (
+    RBCM_OUTPUT_ROOT
+    / "predictions"
+    / "nyudv2_strict_seed4517_20260725_generalization5"
+    / "generalization_summary_official49_49.csv"
 )
-MULTICUE_STRICT_PATH = next(
-    path
-    for path in (
-        ROOT / "weights" / "rbcm" / "multicue" / "main" / "formal_summary.json",
-        ROOT / "pretrained" / "multicue_strict" / "formal_summary.json",
-        ROOT / "docs" / "results" / "strict" / "multicue" / "formal_summary.json",
-    )
-    if path.is_file()
+EXTERNAL_PATH = (
+    ROOT / "edge_outputs" / "rbcm" / "tables"
+    / "fair_generalization"
+    / "external_all_models.csv"
 )
-NYUD_SUMMARY_PATH = next(
-    path
-    for path in (
-        ROOT / "weights" / "rbcm" / "nyudv2" / "main" / "formal_summary.json",
-        ROOT / "pretrained" / "nyudv2_strict" / "formal_summary.json",
-        ROOT / "docs" / "results" / "strict" / "nyudv2" / "formal_summary.json",
-    )
-    if path.is_file()
-)
-NYUD_TRANSFER_PATH = next(
-    path
-    for path in (
-        ROOT / "weights" / "rbcm" / "nyudv2" / "main" / "generalization_summary.csv",
-        ROOT / "docs" / "results" / "strict" / "nyudv2" / "generalization_summary.csv",
-    )
-    if path.is_file()
-)
+
+PRIMARY_DATASETS = ("BIPED", "Multicue", "NYUDv2")
+MODES = ("plain_identity", "main_surround", "no_surround", "conv_control")
+MULTICUE_TARGETS = ("BIPED", "Multicue", "NYUDv2", "BSDS500", "UDED")
+MULTICUE_TRANSFER_DIRS = {
+    "BIPED": "multicue_strict_to_biped",
+    "NYUDv2": "multicue_strict_to_nyudv2",
+    "BSDS500": "multicue_strict_to_bsds500",
+    "UDED": "multicue_strict_to_uded",
+}
 
 FIELDS = [
     "scope",
@@ -78,6 +73,8 @@ FIELDS = [
     "paper_role",
     "protocol_note",
     "source_file",
+    "metric_backend",
+    "evaluation_status",
 ]
 
 
@@ -97,94 +94,151 @@ def empty_row() -> dict[str, Any]:
     return {field: "" for field in FIELDS}
 
 
-def build_rows() -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+def primary_same_domain_rows() -> list[dict[str, Any]]:
+    if not PRIMARY_SAME_PATH.is_file():
+        raise FileNotFoundError(PRIMARY_SAME_PATH)
 
-    for source in read_csv(BIPED_PATH):
+    stability = {}
+    if BIPED_STABILITY_PATH.is_file():
+        stability = {
+            row["mode"]: row for row in read_csv(BIPED_STABILITY_PATH)
+        }
+
+    rows: list[dict[str, Any]] = []
+    for source in read_csv(PRIMARY_SAME_PATH):
+        dataset = source["dataset"]
+        if dataset not in PRIMARY_DATASETS or source["mode"] not in MODES:
+            continue
+        mode = source["mode"]
         row = empty_row()
         row.update(
-            scope="same_domain_stability",
-            training_source="BIPED",
-            target_dataset="BIPED",
+            scope=(
+                "same_domain_stability"
+                if dataset == "BIPED"
+                else "same_domain_strict"
+            ),
+            training_source=dataset,
+            target_dataset=dataset,
+            mode=mode,
+            ODS=source["ODS"],
+            OIS=source["OIS"],
+            AP=source["AP"],
+            n_images=source["n_images"],
+            n_runs=source["n_runs"],
+            thresholds="99",
+            independent_test="true",
+            paper_role="primary",
+            protocol_note=source["protocol"],
+            source_file=relative(PRIMARY_SAME_PATH),
+            metric_backend="dilation",
+            evaluation_status="original_validation_frozen_strategy",
+        )
+        if dataset == "BIPED" and mode in stability:
+            row["ODS_std"] = stability[mode]["ODS_std"]
+            row["OIS_std"] = stability[mode]["OIS_std"]
+            row["AP_std"] = stability[mode]["AP_std"]
+        rows.append(row)
+    return rows
+
+
+def equal_budget_sensitivity_rows() -> list[dict[str, Any]]:
+    if not FAIR_PRIMARY_PATH.is_file():
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for source in read_csv(FAIR_PRIMARY_PATH):
+        dataset = source["dataset"]
+        if dataset not in PRIMARY_DATASETS:
+            continue
+        row = empty_row()
+        row.update(
+            scope="same_domain_equal_budget_sensitivity",
+            training_source=dataset,
+            target_dataset=dataset,
             mode=source["mode"],
             ODS=source["ODS"],
             OIS=source["OIS"],
             AP=source["AP"],
-            ODS_std=source["ODS_std"],
-            OIS_std=source["OIS_std"],
-            AP_std=source["AP_std"],
-            n_images="50",
-            n_runs=source["n_runs"],
-            thresholds="49",
+            n_images=source["n_images_per_split"],
+            n_runs="3" if dataset == "BIPED" else "1",
+            thresholds=source["thresholds"],
             independent_test="true",
-            paper_role="primary",
-            protocol_note="Three fixed 170/30/50 splits; mean and sample SD",
-            source_file=relative(BIPED_PATH),
-        )
-        rows.append(row)
-
-    multicue = json.loads(MULTICUE_STRICT_PATH.read_text(encoding="utf-8"))
-    for mode, payload in multicue["modes"].items():
-        metrics = payload["selected"]
-        row = empty_row()
-        row.update(
-            scope="same_domain_strict",
-            training_source="Multicue",
-            target_dataset="Multicue",
-            mode=mode,
-            ODS=metrics["ODS"],
-            OIS=metrics["OIS"],
-            AP=metrics["AP"],
-            n_images=multicue["test_sources"],
-            n_runs="1",
-            thresholds="99",
-            independent_test="true",
-            paper_role="primary",
+            paper_role="supplementary_sensitivity",
             protocol_note=(
-                "Strict 68-source train / 12 validation / 20 held-out test; "
-                "checkpoint and candidates frozen before the test set was read"
+                "Equal candidate-count sensitivity analysis; validation-only "
+                "selection and frozen test evaluation"
             ),
-            source_file=relative(MULTICUE_STRICT_PATH),
+            source_file=relative(FAIR_PRIMARY_PATH),
+            metric_backend=source["metric_backend"],
+            evaluation_status="supplementary_equal_budget_reanalysis_20260729",
         )
         rows.append(row)
+    return rows
 
-    strict = json.loads(NYUD_SUMMARY_PATH.read_text(encoding="utf-8"))
-    nyud_modes = {
-        "plain_identity": strict["baseline"]["test"],
-        **{
-            mode: payload["test"]
-            for mode, payload in strict["selected"].items()
-        },
-    }
-    for mode, metrics in nyud_modes.items():
-        row = empty_row()
-        row.update(
-            scope="same_domain_strict",
-            training_source="NYUDv2",
-            target_dataset="NYUDv2",
-            mode=mode,
-            ODS=metrics["ODS"],
-            OIS=metrics["OIS"],
-            AP=metrics["AP"],
-            n_images=strict["test_count"],
-            n_runs="1",
-            thresholds="99",
-            independent_test="true",
-            paper_role="primary",
-            protocol_note=(
-                "Strict 381-source train / 414 validation / 654 test; "
-                "checkpoint and candidates selected on validation only"
-            ),
-            source_file=relative(NYUD_SUMMARY_PATH),
-        )
-        rows.append(row)
 
+def multicue_transfer_rows() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for target, directory in MULTICUE_TRANSFER_DIRS.items():
+        path = MULTICUE_TRANSFER_ROOT / directory / "summary.csv"
+        if not path.is_file():
+            continue
+        for source in read_csv(path):
+            if source["mode"] not in MODES:
+                continue
+            row = empty_row()
+            row.update(
+                scope="cross_domain_internal",
+                training_source="Multicue",
+                target_dataset=target,
+                mode=source["mode"],
+                ODS=source["ODS"],
+                OIS=source["OIS"],
+                AP=source["AP"],
+                n_images={
+                    "BIPED": "50",
+                    "NYUDv2": "654",
+                    "BSDS500": "200",
+                    "UDED": "30",
+                }[target],
+                n_runs="1",
+                thresholds="49",
+                independent_test="true",
+                paper_role=(
+                    "primary_generalization"
+                    if target in {"BIPED", "NYUDv2", "UDED"}
+                    else "supplementary_tradeoff"
+                ),
+                protocol_note=(
+                    "Strict MultiCue 68/12/20 source split; mode-specific "
+                    "candidates selected on the 12-source validation set and "
+                    "frozen unchanged for target inference"
+                ),
+                source_file=relative(path),
+                metric_backend="dilation",
+                evaluation_status="original_validation_frozen_strategy",
+            )
+            rows.append(row)
+    return rows
+
+
+def nyud_transfer_rows() -> list[dict[str, Any]]:
+    if not NYUD_TRANSFER_PATH.is_file():
+        return []
+
+    rows: list[dict[str, Any]] = []
     for source in read_csv(NYUD_TRANSFER_PATH):
+        if source["mode"] not in MODES:
+            continue
+        target = source["dataset"]
         row = empty_row()
         row.update(
-            scope="frozen_transfer",
+            scope=(
+                "same_domain_common_evaluator"
+                if target == "NYUDv2"
+                else "cross_domain_internal"
+            ),
             training_source="NYUDv2",
-            target_dataset=source["dataset"],
+            target_dataset=target,
             mode=source["mode"],
             ODS=source["ODS"],
             OIS=source["OIS"],
@@ -193,45 +247,125 @@ def build_rows() -> list[dict[str, Any]]:
             n_runs="1",
             thresholds=source["thresholds"],
             independent_test="true",
-            paper_role="secondary",
+            paper_role=(
+                "primary_generalization"
+                if target in {"NYUDv2", "BSDS500", "UDED"}
+                else "supplementary"
+            ),
             protocol_note=(
-                "Strict NYUDv2 epoch-9 checkpoint and validation-selected "
-                "candidate frozen across all targets"
+                "Strict NYUDv2 381/414/654 split; mode-specific candidates "
+                "selected on the 414-image validation set and frozen unchanged "
+                "for all targets"
             ),
             source_file=relative(NYUD_TRANSFER_PATH),
+            metric_backend=source["metric_backend"],
+            evaluation_status="original_validation_frozen_strategy",
         )
         rows.append(row)
-
     return rows
+
+
+def external_rows() -> list[dict[str, Any]]:
+    if not EXTERNAL_PATH.is_file():
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for source in read_csv(EXTERNAL_PATH):
+        row = empty_row()
+        row.update(
+            scope="external_released_checkpoint_common_evaluator",
+            training_source=source["source_dataset"],
+            target_dataset=source["target_dataset"],
+            mode=source["model"],
+            ODS=source["ODS"],
+            OIS=source["OIS"],
+            AP=source["AP"],
+            n_images=source["n_images"],
+            n_runs="1",
+            thresholds=source["thresholds"],
+            independent_test="true",
+            paper_role="external_context",
+            protocol_note=(
+                f"{source['training_scope']}; released prediction/checkpoint "
+                "reference evaluated on the shared target GT, NMS, threshold "
+                "sweep, tolerance, and matcher"
+            ),
+            source_file=relative(EXTERNAL_PATH),
+            metric_backend=source["metric_backend"],
+            evaluation_status="common_evaluator_reference",
+        )
+        rows.append(row)
+    return rows
+
+
+def build_rows() -> list[dict[str, Any]]:
+    return [
+        *primary_same_domain_rows(),
+        *multicue_transfer_rows(),
+        *nyud_transfer_rows(),
+        *external_rows(),
+        *equal_budget_sensitivity_rows(),
+    ]
 
 
 def write_markdown(rows: list[dict[str, Any]], path: Path) -> None:
     primary = [
-        row for row in rows
-        if row["scope"] in {"same_domain_stability", "same_domain_strict"}
+        row
+        for row in rows
+        if row["paper_role"] == "primary"
+        and row["mode"] in MODES
+    ]
+    transfer = [
+        row
+        for row in rows
+        if row["paper_role"] == "primary_generalization"
+        and row["training_source"] == "Multicue"
     ]
     lines = [
         "# Canonical H-RBCM result index",
         "",
         "This file is generated by `scripts/analysis/build_formal_result_index.py`.",
-        "BIPED, strict MultiCue, and strict NYUDv2 are primary independent-test",
-        "evidence.",
+        "The primary analysis uses structure-appropriate, mode-specific candidate",
+        "sets selected only on validation data and frozen before test access.",
+        "The equal-budget analysis is retained as a supplementary sensitivity",
+        "analysis and does not overwrite the predeclared primary strategy.",
         "",
-        "| Scope | Source | Target | Mode | ODS | OIS | AP | Role |",
-        "|---|---|---|---|---:|---:|---:|---|",
+        "All rows use the project's shared near-official Python dilation matcher.",
+        "The square annulus is the intended L-infinity implementation.",
+        "",
+        "## Primary same-domain evidence",
+        "",
+        "| Source/target | Mode | ODS | OIS | AP |",
+        "|---|---|---:|---:|---:|",
     ]
     for row in primary:
         lines.append(
-            f"| {row['scope']} | {row['training_source']} | "
-            f"{row['target_dataset']} | {row['mode']} | "
+            f"| {row['training_source']} | {row['mode']} | "
             f"{float(row['ODS']):.5f} | {float(row['OIS']):.5f} | "
-            f"{float(row['AP']):.5f} | {row['paper_role']} |"
+            f"{float(row['AP']):.5f} |"
         )
     lines.extend(
         [
             "",
-            "The complete CSV/JSON also includes the frozen strict-NYUDv2",
-            "five-target matrix.",
+            "## Strict MultiCue-source transfer evidence",
+            "",
+            "| Target | Mode | ODS | OIS | AP |",
+            "|---|---|---:|---:|---:|",
+        ]
+    )
+    for row in transfer:
+        lines.append(
+            f"| {row['target_dataset']} | {row['mode']} | "
+            f"{float(row['ODS']):.5f} | {float(row['OIS']):.5f} | "
+            f"{float(row['AP']):.5f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "The CSV/JSON files also retain the complete external released-checkpoint",
+            "matrix and equal-budget sensitivity rows. External rows share the",
+            "target evaluator but may have different published training recipes;",
+            "they are therefore checkpoint references, not identical-training runs.",
             "",
         ]
     )
@@ -252,11 +386,21 @@ def main() -> None:
     json_path.write_text(
         json.dumps(
             {
-                "schema_version": 2,
+                "schema_version": 4,
+                "evidence_freeze": "original_strategy_20260729",
+                "primary_candidate_policy": (
+                    "Mode-specific validation selection; candidates frozen "
+                    "before test or transfer evaluation"
+                ),
+                "sensitivity_candidate_policy": (
+                    "Equal candidate counts retained as supplementary analysis"
+                ),
+                "annulus_geometry": "square_l_infinity",
+                "metric_backend": "near_official_python_dilation",
                 "canonical_primary_protocols": [
-                    "BIPED",
-                    "Multicue_strict",
-                    "NYUDv2_strict",
+                    "BIPED_three_split",
+                    "Multicue_strict_68_12_20",
+                    "NYUDv2_strict_381_414_654",
                 ],
                 "rows": rows,
             },
@@ -267,6 +411,7 @@ def main() -> None:
         encoding="utf-8",
     )
     write_markdown(rows, OUT_ROOT / "FORMAL_RESULT_INDEX.md")
+
     RESULT_OUT_ROOT.mkdir(parents=True, exist_ok=True)
     for source in OUT_ROOT.iterdir():
         if source.is_file():

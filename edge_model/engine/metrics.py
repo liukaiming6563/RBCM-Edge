@@ -59,11 +59,12 @@ def nms_probabilities(probabilities: torch.Tensor, low_threshold: float = 0.0) -
 class FastEdgeMetricAccumulator:
     """GPU-friendly approximate edge metrics for training-time validation.
 
-    The strict metric below restores every prediction to original image size and
-    uses SciPy KD-tree matching for each threshold. That is useful for final
-    reporting but slow inside training. This accumulator keeps validation on the
-    active torch device and uses dilation-based tolerant matching. It is intended
-    for checkpoint selection and debugging, not as the paper's final benchmark.
+    The stricter metric below restores every prediction to original image size
+    and uses distance-prioritized one-to-one matching for each threshold. That
+    is useful as a sensitivity check but slow inside training. This accumulator
+    keeps validation on the active torch device and uses dilation-based tolerant
+    matching. It is intended for checkpoint selection and debugging, not as the
+    paper's final benchmark.
     """
 
     def __init__(
@@ -493,27 +494,13 @@ def _soft_tolerant_boundary_counts(pred: np.ndarray, truth: np.ndarray, match_to
     if truth_count == 0:
         return 0.0, pred_count, 0.0
 
-    pred_points = np.argwhere(pred)
     truth_mask = truth > 0.0
-    truth_points = np.argwhere(truth_mask)
-    truth_values = truth[truth_mask].astype(np.float64)
     tolerance_pixels = _tolerance_pixels(pred.shape, match_tolerance)
-    distances, truth_indices = _nearest_truth_indices(pred_points, truth_points, tolerance_pixels)
-    valid_pred = np.isfinite(distances) & (truth_indices < len(truth_points))
-    if not valid_pred.any():
+    _, matched_truth = _greedy_one_to_one_matches(pred, truth_mask, tolerance_pixels)
+    if not matched_truth.any():
         return 0.0, pred_count, truth_count
 
-    candidate_order = np.argsort(distances[valid_pred], kind="mergesort")
-    ordered_truth_indices = truth_indices[valid_pred][candidate_order]
-
-    used_truth: set[int] = set()
-    tp = 0.0
-    for truth_index in ordered_truth_indices:
-        truth_index_int = int(truth_index)
-        if truth_index_int in used_truth:
-            continue
-        used_truth.add(truth_index_int)
-        tp += float(truth_values[truth_index_int])
+    tp = float(truth[matched_truth].sum(dtype=np.float64))
 
     # Each predicted pixel contributes at most one unit of precision mass.  A
     # soft-vote GT match gives fractional true-positive credit, and duplicate
@@ -524,7 +511,7 @@ def _soft_tolerant_boundary_counts(pred: np.ndarray, truth: np.ndarray, match_to
 
 
 def _tolerant_boundary_counts(pred: np.ndarray, truth: np.ndarray, match_tolerance: float) -> tuple[float, float, float]:
-    """Return approximate one-to-one tolerant boundary matching counts."""
+    """Return distance-prioritized one-to-one tolerant boundary counts."""
     pred_count = float(pred.sum())
     truth_count = float(truth.sum())
     if pred_count == 0 and truth_count == 0:
@@ -534,27 +521,75 @@ def _tolerant_boundary_counts(pred: np.ndarray, truth: np.ndarray, match_toleran
     if truth_count == 0:
         return 0.0, pred_count, 0.0
 
-    pred_points = np.argwhere(pred)
-    truth_points = np.argwhere(truth)
     tolerance_pixels = _tolerance_pixels(pred.shape, match_tolerance)
-    distances, truth_indices = _nearest_truth_indices(pred_points, truth_points, tolerance_pixels)
-    valid = np.isfinite(distances) & (truth_indices < len(truth_points))
-    if not valid.any():
+    _, matched_truth = _greedy_one_to_one_matches(pred, truth, tolerance_pixels)
+    matched = int(matched_truth.sum())
+    if matched == 0:
         return 0.0, pred_count, truth_count
-
-    candidate_order = np.argsort(distances[valid], kind="mergesort")
-    candidate_truth_indices = truth_indices[valid][candidate_order]
-    used_truth: set[int] = set()
-    matched = 0
-    for truth_index in candidate_truth_indices:
-        truth_index_int = int(truth_index)
-        if truth_index_int in used_truth:
-            continue
-        used_truth.add(truth_index_int)
-        matched += 1
 
     tp = float(matched)
     return tp, pred_count - tp, truth_count - tp
+
+
+def _greedy_one_to_one_matches(
+    pred: np.ndarray,
+    truth: np.ndarray,
+    tolerance_pixels: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Match unique boundary pixels while considering every valid neighbor.
+
+    Every integer offset inside the tolerance disk is visited in increasing
+    distance order. A pair is accepted only when both pixels remain unmatched.
+    Unlike a single-nearest-neighbor lookup, this lets a prediction try another
+    valid ground-truth pixel when its nearest one has already been claimed.
+    """
+
+    pred = np.asarray(pred, dtype=bool)
+    truth = np.asarray(truth, dtype=bool)
+    if pred.shape != truth.shape:
+        raise ValueError(f"pred/truth shape mismatch: {pred.shape} vs {truth.shape}")
+
+    height, width = pred.shape
+    matched_pred = np.zeros_like(pred, dtype=bool)
+    matched_truth = np.zeros_like(truth, dtype=bool)
+    radius = max(0, int(np.ceil(float(tolerance_pixels))))
+    tolerance_sq = float(tolerance_pixels) ** 2 + 1e-9
+    offsets = [
+        (dy * dy + dx * dx, dy, dx)
+        for dy in range(-radius, radius + 1)
+        for dx in range(-radius, radius + 1)
+        if dy * dy + dx * dx <= tolerance_sq
+    ]
+    offsets.sort(key=lambda item: (item[0], abs(item[1]) + abs(item[2]), item[1], item[2]))
+
+    for _, dy, dx in offsets:
+        pred_y0 = max(0, -dy)
+        pred_y1 = min(height, height - dy)
+        pred_x0 = max(0, -dx)
+        pred_x1 = min(width, width - dx)
+        if pred_y0 >= pred_y1 or pred_x0 >= pred_x1:
+            continue
+
+        truth_y0 = pred_y0 + dy
+        truth_y1 = pred_y1 + dy
+        truth_x0 = pred_x0 + dx
+        truth_x1 = pred_x1 + dx
+        pred_available = (
+            pred[pred_y0:pred_y1, pred_x0:pred_x1]
+            & ~matched_pred[pred_y0:pred_y1, pred_x0:pred_x1]
+        )
+        truth_available = (
+            truth[truth_y0:truth_y1, truth_x0:truth_x1]
+            & ~matched_truth[truth_y0:truth_y1, truth_x0:truth_x1]
+        )
+        pairs = pred_available & truth_available
+        if not pairs.any():
+            continue
+
+        matched_pred[pred_y0:pred_y1, pred_x0:pred_x1] |= pairs
+        matched_truth[truth_y0:truth_y1, truth_x0:truth_x1] |= pairs
+
+    return matched_pred, matched_truth
 
 
 def _nearest_truth_indices(

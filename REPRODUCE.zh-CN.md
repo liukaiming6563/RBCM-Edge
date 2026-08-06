@@ -1,6 +1,6 @@
 # RBCM-Edge 复现说明
 
-本文档覆盖论文最终使用的 MEA 分析、H-RBCM 边缘检测实验及其正式评估结果。
+本文档覆盖论文最终使用的 MEA 分析和 H-RBCM 边缘检测实验，不包含已废弃的历史模型路线。
 
 ## 1. 获取代码和大文件
 
@@ -38,6 +38,7 @@ python -m pip install -e .
 ## 3. 评估前完整性检查
 
 ```bash
+python scripts/release/verify_paper_release.py --code-root .
 python scripts/release/smoke_paper_release.py --checkpoint-root pretrained --dataset all
 python scripts/checks/audit_multicue_strict_protocol.py \
   --config edge_model/configs/rbcm/multicue_strict.yaml
@@ -84,15 +85,17 @@ python scripts/analysis/evaluate_nyud_strict_generalization.py \
 容差。它是统一的近官方 Python dilation matcher，不是 BSDS 官方 Matlab 精确二分
 匹配器。不同后端的绝对分数不能在不标注协议的情况下直接混比。
 
-## 5. 重建正式表格和图
+## 5. 在本地重建结果表和指标图
 
 ```bash
 python scripts/analysis/build_formal_result_index.py
 python scripts/analysis/build_strict_protocol_tables.py
-python scripts/analysis/plot_joint_ablation_metrics.py
+python scripts/figures/edge/plot_joint_ablation_metrics.py
 ```
 
-当前正式表只使用 BIPED、严格 MultiCue 和严格 NYUDv2。
+当前正式表只使用 BIPED、严格 MultiCue 和严格 NYUDv2。重建旧 MultiCue 重合协议
+的脚本必须显式传入归档参数，不能用于正文主表。
+公开分支不跟踪任何已生成表格或图片。
 
 ## 6. 从头训练
 
@@ -120,8 +123,24 @@ python scripts/analysis/run_mea_pipeline.py
 流水线读取 `MEA_data/`，并向 `MEA_outputs/` 写入最终表格、统计摘要和图片。该分析
 比较 UME/CME 条件下空间匹配的局部群体，不是跨 recording 的单细胞一一配对。
 
+### 复现 V5 图5分析
+
+先用冻结的严格 MultiCue checkpoint 为 BIPED、MultiCue、NYUDv2 和 UDED 生成
+Anchor 预测，再从正式 MEA 表、输入图像和验证集冻结候选计算 V5 源表：
+
+```bash
+python scripts/analysis/reproduce_figure5_relative_statistics.py \
+  --candidate-csv pretrained/multicue_strict/calibration_candidates.csv
+python scripts/figures/bridge/render_figure5_relative_panels.py \
+  --source-dir edge_outputs/rbcm/analyses/mea_rbcm_bridge/figure5_relative \
+  --output-dir edge_outputs/rbcm/figures/mea_rbcm_bridge/figure5_relative
+```
+
+脚本使用纯 H-RBCM 项 `alpha * U * C`，状态分类不使用目标 GT；图中比较的是
+样本内标准化后的相对空间异质性，不表示 MEA 与网络原始绝对效应分布相同。
+
 ## 8. 预期结果边界
 
-正式机器可读结果位于 `docs/results/strict/`。不同硬件上应复现接近的数值，而不要求
-所有浮点输出逐字节一致。只有在协议、划分身份、冻结候选、评估后端和指标定义一致时，
-才可把数值视为同一实验的复现。
+重新生成的预测、表格、统计结果和图片都写入被忽略的输出目录，不随 GitHub 分支
+发布。不同硬件上应复现接近的数值，而不要求所有浮点输出逐字节一致。只有在协议、
+划分身份、冻结候选、评估后端和指标定义一致时，才可把数值视为同一实验的复现。

@@ -1,7 +1,7 @@
 # Reproducing RBCM-Edge
 
-This guide covers the final paper-facing MEA analysis, H-RBCM edge-detection
-experiments, and their formal evaluation outputs.
+This guide covers the final paper-facing MEA analysis and H-RBCM edge-detection
+experiments. Historical model variants are not part of the reproduction target.
 
 ## 1. Obtain the source and assets
 
@@ -44,6 +44,7 @@ orientation, and evaluator backend.
 ## 3. Verify the release before evaluation
 
 ```bash
+python scripts/release/verify_paper_release.py --code-root .
 python scripts/release/smoke_paper_release.py --checkpoint-root pretrained --dataset all
 python scripts/checks/audit_multicue_strict_protocol.py \
   --config edge_model/configs/rbcm/multicue_strict.yaml
@@ -95,15 +96,18 @@ tolerance per dataset. It is a shared near-official Python dilation matcher,
 not the exact BSDS Matlab bipartite matcher. Do not compare its absolute scores
 to a different backend without an explicit protocol label.
 
-## 5. Rebuild canonical tables and figures
+## 5. Rebuild result tables and metric figures locally
 
 ```bash
 python scripts/analysis/build_formal_result_index.py
 python scripts/analysis/build_strict_protocol_tables.py
-python scripts/analysis/plot_joint_ablation_metrics.py
+python scripts/figures/edge/plot_joint_ablation_metrics.py
 ```
 
 The current formal tables contain BIPED, strict MultiCue, and strict NYUDv2.
+Scripts that reconstruct the retired overlapping MultiCue route require an
+explicit archival flag and must not be used for the main paper table.
+No generated table or rendered figure is tracked in the public branch.
 
 ## 6. Reproduce training
 
@@ -135,11 +139,31 @@ and figures to `MEA_outputs/`. It performs a spatially matched local-population
 analysis of UME and CME recordings, not one-to-one cell matching between
 recordings.
 
+### Reproduce the V5 Figure 5 analysis
+
+After generating the frozen strict MultiCue Anchor predictions for BIPED,
+MultiCue, NYUDv2, and UDED, calculate the V5 source rows from the formal MEA
+table, source images, and validation-frozen candidate:
+
+```bash
+python scripts/analysis/reproduce_figure5_relative_statistics.py \
+  --candidate-csv pretrained/multicue_strict/calibration_candidates.csv
+python scripts/figures/bridge/render_figure5_relative_panels.py \
+  --source-dir edge_outputs/rbcm/analyses/mea_rbcm_bridge/figure5_relative \
+  --output-dir edge_outputs/rbcm/figures/mea_rbcm_bridge/figure5_relative
+```
+
+The script uses the pure H-RBCM term `alpha * U * C`; state classification does
+not use target ground truth. The comparison is normalized within-sample
+relative heterogeneity, not equality of raw MEA and network effect
+distributions.
+
 ## 8. Expected evidence
 
-Canonical machine-readable results are in `docs/results/strict/`. The supplied
-checkpoints should reproduce nearby values rather than byte-identical floating
-point output on every hardware stack. A result is considered consistent when
-the same protocol, split identities, candidate rows, evaluator backend, and
-metric definitions are used and numerical deviations are limited to ordinary
-hardware/library variation.
+All reproduced predictions, tables, statistics, and figures are written under
+the ignored output directories and are not included in the GitHub branch.
+Supplied checkpoints should reproduce nearby values rather than byte-identical
+floating-point output on every hardware stack. A result is consistent when the
+protocol, split identities, frozen candidates, evaluator backend, and metric
+definitions match and deviations are limited to ordinary hardware/library
+variation.

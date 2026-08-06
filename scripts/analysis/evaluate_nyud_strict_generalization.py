@@ -24,22 +24,11 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "edge_model" / "configs" / "rbcm" / "nyudv2_strict.yaml"
 CHECKPOINT = (
     ROOT
-    / "results"
-    / "rbcm"
-    / "training"
-    / "nyudv2"
-    / "nyudv2_strict_seed4517_final_20260724"
-    / "checkpoints"
+    / "pretrained"
+    / "nyudv2_strict"
     / "best.pt"
 )
-FORMAL_DIR = (
-    ROOT
-    / "results"
-    / "rbcm"
-    / "predictions"
-    / "nyudv2_strict_seed4517_20260724_formal_retry"
-)
-FORMAL_SUMMARY = FORMAL_DIR / "summary.json"
+FORMAL_SUMMARY = ROOT / "pretrained" / "nyudv2_strict" / "formal_summary.json"
 DEFAULT_RUN_TAG = "nyudv2_strict_seed4517_20260725_generalization5"
 MODES = ("plain_identity", "main_surround", "no_surround", "conv_control")
 CALIBRATED_MODES = ("main_surround", "no_surround", "conv_control")
@@ -125,7 +114,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_root(args: argparse.Namespace) -> Path:
-    return ROOT / "results" / "rbcm" / "predictions" / args.run_tag
+    return ROOT / "edge_outputs" / "rbcm" / "predictions" / args.run_tag
 
 
 def sha256(path: Path) -> str:

@@ -5,7 +5,7 @@ device: cuda
 paths:
   project_root: .
   edge_data_root: edge_data/official_rbcm
-  output_root: results/rbcm/training/biped
+  output_root: edge_outputs/rbcm/training/biped
 dataset:
   train_dataset: BIPED
   val_dataset: BIPED

@@ -92,7 +92,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--thresholds", type=int, default=99)
     parser.add_argument("--match-tolerance", type=float, default=0.0075)
     parser.add_argument("--skip-dense-orientation", type=float, default=0.35)
-    parser.add_argument("--metric-backend", choices=["dilation", "strict_kdtree"], default="dilation")
+    parser.add_argument(
+        "--metric-backend",
+        choices=["dilation", "greedy_one_to_one", "strict_kdtree"],
+        default="dilation",
+    )
     parser.add_argument("--gt-threshold", type=float, default=0.0)
     parser.add_argument(
         "--allow-missing",
@@ -169,9 +173,33 @@ def validate_samples(samples: list[tuple[str, Path]]) -> None:
         raise FileNotFoundError(f"Missing ground-truth files ({len(missing_gt)}): {missing_gt[:20]}")
 
 
-def biped_samples(root: Path) -> list[tuple[str, Path]]:
-    pairs = json.loads((root / "test_pair.lst").read_text(encoding="utf-8"))
-    return [(Path(img).stem, root / gt) for img, gt in pairs]
+def biped_samples(root: Path, split_file: Path | None = None) -> list[tuple[str, Path]]:
+    if split_file is not None:
+        if not split_file.exists():
+            raise FileNotFoundError(split_file)
+        stems = [
+            line.strip().split()[0]
+            for line in split_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        return [(stem, root / "edge" / f"{stem}.png") for stem in stems]
+
+    pair_file = root / "test_pair.lst"
+    if pair_file.exists():
+        pairs = json.loads(pair_file.read_text(encoding="utf-8"))
+        return [(Path(img).stem, root / gt) for img, gt in pairs]
+
+    default_split = root / "splits" / "test.txt"
+    if not default_split.exists():
+        raise FileNotFoundError(
+            f"BIPED requires --split-file, {pair_file}, or {default_split}"
+        )
+    stems = [
+        line.strip().split()[0]
+        for line in default_split.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    return [(stem, root / "edge" / f"{stem}.png") for stem in stems]
 
 
 def _iter_bsds_boundaries(raw: object) -> Iterable[np.ndarray]:
@@ -392,10 +420,24 @@ def evaluate_orientation(
             },
             [],
         )
-    if metric_backend == "strict_kdtree":
-        metrics = edge_metrics_from_arrays(oriented, targets, thresholds=thresholds, match_tolerance=tolerance)
-        curve = threshold_curve_from_arrays(oriented, targets, thresholds=thresholds, match_tolerance=tolerance)
-        metrics["metric_backend"] = "strict_kdtree"
+    if metric_backend in {"greedy_one_to_one", "strict_kdtree"}:
+        binary_targets = [
+            np.asarray(target > float(gt_threshold), dtype=np.float32)
+            for target in targets
+        ]
+        metrics = edge_metrics_from_arrays(
+            oriented,
+            binary_targets,
+            thresholds=thresholds,
+            match_tolerance=tolerance,
+        )
+        curve = threshold_curve_from_arrays(
+            oriented,
+            binary_targets,
+            thresholds=thresholds,
+            match_tolerance=tolerance,
+        )
+        metrics["metric_backend"] = "greedy_one_to_one"
     else:
         metrics, curve = dilation_metrics_from_arrays(oriented, targets, thresholds, tolerance, gt_threshold)
     metrics["orientation"] = orientation
@@ -420,7 +462,10 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     predictions = collect_predictions(args.prediction_dir.resolve())
     if args.dataset == "BIPED":
-        samples = biped_samples(args.biped_root.resolve())
+        samples = biped_samples(
+            args.biped_root.resolve(),
+            args.split_file.resolve() if args.split_file else None,
+        )
     elif args.dataset == "BSDS500":
         samples = bsds_samples(args.bsds_root.resolve())
     elif args.dataset == "Multicue":

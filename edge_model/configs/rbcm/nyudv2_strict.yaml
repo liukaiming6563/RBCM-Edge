@@ -6,7 +6,7 @@ device: cuda
 paths:
   project_root: .
   edge_data_root: edge_data/official_rbcm
-  output_root: results/rbcm/training/nyudv2
+  output_root: edge_outputs/rbcm/training/nyudv2
 
 paper_protocol:
   name: NYUDv2 RGB 381/414/654 strict protocol
@@ -141,7 +141,7 @@ train:
   checkpoint_interval_steps: 500
   periodic_checkpoint_minutes: 10.0
   periodic_checkpoint_keep: 3
-  stop_file: results/rbcm/training/nyudv2/nyudv2_strict_seed4517_final_20260724/STOP
+  stop_file: edge_outputs/rbcm/training/nyudv2/nyudv2_strict_seed4517_final_20260724/STOP
 
 eval:
   save_predictions: false

@@ -7,16 +7,15 @@ RBCM-Edge/
   edge_model/          H-RBCM 训练、推理与评估框架
   src/rbcm_edge/       可导入的模型与损失函数包
   scripts/
-    analysis/          正式结果表、图片与 MEA 流水线
+    analysis/          评估、图5统计与 MEA 流水线
     baselines/         统一边缘评估后端
-    checks/            严格协议与发布检查
+    checks/            严格协议检查
     data/              固定 MultiCue 划分准备
     experiments/       H-RBCM 校准与泛化评估
-    release/           数据包验证与复现入口
-  docs/
-    results/           冻结的正式结果摘要与协议证据
+    figures/           图5与指标作图代码
+    release/           源码校验与复现入口
 ```
 
 大体量数据集和预训练权重通过 `DOWNLOADS.zh-CN.md` 中的网盘链接单独
-发布。解压后按照 `REPRODUCE.zh-CN.md` 核验数据包并复现正式 MEA 与
-H-RBCM 结果。
+发布。论文、已生成图片、结果表、预测结果和历史代码不属于本分支。解压后
+按照 `REPRODUCE.zh-CN.md` 在本地重新生成结果。

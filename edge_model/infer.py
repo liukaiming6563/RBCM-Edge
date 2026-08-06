@@ -31,7 +31,7 @@ DEFAULT_ARGS = {
     "config": PROJECT_ROOT / "edge_model" / "configs" / "rbcm" / "biped.yaml",
     "checkpoint": None,
     "image_dir": Path("edge_data/official_rbcm/BIPED/image"),
-    "output_dir": Path("results/rbcm/inference"),
+    "output_dir": Path("edge_outputs/rbcm/inference"),
     "input_size": 300,
     "device": "cuda",
     "mode": "plain_identity",
