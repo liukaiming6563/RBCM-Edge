@@ -28,10 +28,11 @@ FAIR_PRIMARY_PATH = (
     / "summary"
     / "fair_primary_results.csv"
 )
-MULTICUE_TRANSFER_ROOT = (
+MULTICUE_TRANSFER_PATH = (
     RBCM_OUTPUT_ROOT
-    / "reanalysis"
-    / "original_strategy_20260729"
+    / "predictions"
+    / "multicue_strict_seed4517_generalization5"
+    / "generalization_summary_official49.csv"
 )
 NYUD_TRANSFER_PATH = (
     RBCM_OUTPUT_ROOT
@@ -48,12 +49,6 @@ EXTERNAL_PATH = (
 PRIMARY_DATASETS = ("BIPED", "Multicue", "NYUDv2")
 MODES = ("plain_identity", "main_surround", "no_surround", "conv_control")
 MULTICUE_TARGETS = ("BIPED", "Multicue", "NYUDv2", "BSDS500", "UDED")
-MULTICUE_TRANSFER_DIRS = {
-    "BIPED": "multicue_strict_to_biped",
-    "NYUDv2": "multicue_strict_to_nyudv2",
-    "BSDS500": "multicue_strict_to_bsds500",
-    "UDED": "multicue_strict_to_uded",
-}
 
 FIELDS = [
     "scope",
@@ -177,47 +172,44 @@ def equal_budget_sensitivity_rows() -> list[dict[str, Any]]:
 
 
 def multicue_transfer_rows() -> list[dict[str, Any]]:
+    if not MULTICUE_TRANSFER_PATH.is_file():
+        return []
+
     rows: list[dict[str, Any]] = []
-    for target, directory in MULTICUE_TRANSFER_DIRS.items():
-        path = MULTICUE_TRANSFER_ROOT / directory / "summary.csv"
-        if not path.is_file():
+    for source in read_csv(MULTICUE_TRANSFER_PATH):
+        if source["mode"] not in MODES:
             continue
-        for source in read_csv(path):
-            if source["mode"] not in MODES:
-                continue
-            row = empty_row()
-            row.update(
-                scope="cross_domain_internal",
-                training_source="Multicue",
-                target_dataset=target,
-                mode=source["mode"],
-                ODS=source["ODS"],
-                OIS=source["OIS"],
-                AP=source["AP"],
-                n_images={
-                    "BIPED": "50",
-                    "NYUDv2": "654",
-                    "BSDS500": "200",
-                    "UDED": "30",
-                }[target],
-                n_runs="1",
-                thresholds="49",
-                independent_test="true",
-                paper_role=(
-                    "primary_generalization"
-                    if target in {"BIPED", "NYUDv2", "UDED"}
-                    else "supplementary_tradeoff"
-                ),
-                protocol_note=(
-                    "Strict MultiCue 68/12/20 source split; mode-specific "
-                    "candidates selected on the 12-source validation set and "
-                    "frozen unchanged for target inference"
-                ),
-                source_file=relative(path),
-                metric_backend="dilation",
-                evaluation_status="original_validation_frozen_strategy",
-            )
-            rows.append(row)
+        target = source["target_dataset"]
+        if target not in {"BIPED", "NYUDv2", "BSDS500", "UDED"}:
+            continue
+        row = empty_row()
+        row.update(
+            scope="cross_domain_internal",
+            training_source="Multicue",
+            target_dataset=target,
+            mode=source["mode"],
+            ODS=source["ODS"],
+            OIS=source["OIS"],
+            AP=source["AP"],
+            n_images=source["n_images"],
+            n_runs="1",
+            thresholds=source["thresholds"],
+            independent_test="true",
+            paper_role=(
+                "primary_generalization"
+                if target in {"BIPED", "NYUDv2", "UDED"}
+                else "supplementary_tradeoff"
+            ),
+            protocol_note=(
+                "Strict MultiCue 68/12/20 source split; mode-specific "
+                "candidates selected on the 12-source validation set and "
+                "frozen unchanged for target inference"
+            ),
+            source_file=relative(MULTICUE_TRANSFER_PATH),
+            metric_backend="dilation",
+            evaluation_status="manuscript_v5_frozen_strategy",
+        )
+        rows.append(row)
     return rows
 
 
@@ -386,8 +378,8 @@ def main() -> None:
     json_path.write_text(
         json.dumps(
             {
-                "schema_version": 4,
-                "evidence_freeze": "original_strategy_20260729",
+                "schema_version": 5,
+                "evidence_freeze": "manuscript_v5_result_sources_20260808",
                 "primary_candidate_policy": (
                     "Mode-specific validation selection; candidates frozen "
                     "before test or transfer evaluation"

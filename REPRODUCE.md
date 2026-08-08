@@ -101,9 +101,13 @@ to a different backend without an explicit protocol label.
 ```bash
 python scripts/analysis/build_formal_result_index.py
 python scripts/analysis/build_strict_protocol_tables.py
+python scripts/analysis/build_requested_cross_domain_report.py
+python scripts/analysis/build_v5_result_tables.py
 python scripts/figures/edge/plot_joint_ablation_metrics.py
 ```
 
+`build_v5_result_tables.py` reconstructs the seven CSV tables used by manuscript
+V5 directly from evaluator outputs; it contains no hard-coded paper scores.
 The current formal tables contain BIPED, strict MultiCue, and strict NYUDv2.
 Scripts that reconstruct the retired overlapping MultiCue route require an
 explicit archival flag and must not be used for the main paper table.
@@ -124,6 +128,10 @@ python edge_model/train.py \
 For MultiCue, use `edge_model/configs/rbcm/multicue_strict.yaml` and preserve
 the supplied strict split. Candidate selection must use validation data only;
 the test split must remain inaccessible until the candidate table is frozen.
+`calibrate.py` is validation-only by default. Paper-facing testing should use
+the frozen candidate CSV with `evaluate_generalization.py`; the legacy combined
+path requires an explicit `--evaluate-test` only after the candidate hash is
+written.
 One seed is supplied for strict MultiCue and NYUDv2, so the paper must not
 claim multi-seed statistical significance for those rows.
 
@@ -146,6 +154,8 @@ MultiCue, NYUDv2, and UDED, calculate the V5 source rows from the formal MEA
 table, source images, and validation-frozen candidate:
 
 ```bash
+python scripts/figures/edge/generate_multicue_strict_pr_curves.py \
+  --checkpoint-root pretrained --device cuda
 python scripts/analysis/reproduce_figure5_relative_statistics.py \
   --candidate-csv pretrained/multicue_strict/calibration_candidates.csv
 python scripts/figures/bridge/render_figure5_relative_panels.py \

@@ -74,8 +74,11 @@ def verify_membership(root: Path) -> None:
         "scripts/experiments/calibrate.py",
         "scripts/experiments/evaluate_generalization.py",
         "scripts/analysis/evaluate_nyud_strict_generalization.py",
+        "scripts/analysis/build_v5_result_tables.py",
         "scripts/analysis/reproduce_figure5_relative_statistics.py",
         "scripts/figures/bridge/render_figure5_relative_panels.py",
+        "scripts/figures/edge/generate_multicue_strict_pr_curves.py",
+        "scripts/checks/audit_edge_pipeline_integrity.py",
         "scripts/release/smoke_paper_release.py",
         "scripts/release/verify_paper_release.py",
     )
@@ -123,7 +126,7 @@ def verify_membership(root: Path) -> None:
 
     forbidden_suffixes = {
         ".docx", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".svg",
-        ".xlsx", ".pt", ".pth", ".ckpt", ".onnx", ".npy", ".npz",
+        ".xlsx", ".pt", ".pth", ".ckpt", ".onnx", ".npy", ".npz", ".pyc",
         ".h5", ".mat", ".json",
     }
     leaked_files = sorted(
@@ -147,6 +150,30 @@ def verify_membership(root: Path) -> None:
 def load_config(root: Path, name: str) -> dict:
     path = root / "edge_model" / "configs" / "rbcm" / name
     return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def verify_v5_reproduction_contract(root: Path) -> None:
+    formal_index = (root / "scripts/analysis/build_formal_result_index.py").read_text(
+        encoding="utf-8"
+    )
+    if "multicue_strict_seed4517_generalization5" not in formal_index:
+        raise RuntimeError("Formal index does not use the manuscript V5 MultiCue source")
+    if "original_strategy_20260729" in formal_index:
+        raise RuntimeError("Retired MultiCue transfer source remains in the formal index")
+
+    calibrate = (root / "scripts/experiments/calibrate.py").read_text(encoding="utf-8")
+    if '"--evaluate-test"' not in calibrate:
+        raise RuntimeError("Calibration has no explicit post-freeze test opt-in")
+    freeze_at = calibrate.find("CANDIDATES_FROZEN.sha256")
+    test_at = calibrate.find("if args.evaluate_test:")
+    if freeze_at < 0 or test_at < 0 or freeze_at > test_at:
+        raise RuntimeError("Calibration can access test data before candidate freeze")
+
+    pr_generator = (
+        root / "scripts/figures/edge/generate_multicue_strict_pr_curves.py"
+    ).read_text(encoding="utf-8")
+    if '"--checkpoint-root"' not in pr_generator or "multicue_strict" not in pr_generator:
+        raise RuntimeError("MultiCue PR reproduction cannot resolve release checkpoints")
 
 
 def verify_v5_configs(root: Path) -> None:
@@ -327,6 +354,7 @@ def verify_text_safety(root: Path) -> None:
 def main() -> None:
     root = parse_args().code_root.resolve()
     verify_membership(root)
+    verify_v5_reproduction_contract(root)
     verify_v5_configs(root)
     parameter_count, output_shape = verify_v5_runtime(root)
     verify_text_safety(root)

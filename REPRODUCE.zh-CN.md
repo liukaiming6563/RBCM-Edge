@@ -90,9 +90,13 @@ python scripts/analysis/evaluate_nyud_strict_generalization.py \
 ```bash
 python scripts/analysis/build_formal_result_index.py
 python scripts/analysis/build_strict_protocol_tables.py
+python scripts/analysis/build_requested_cross_domain_report.py
+python scripts/analysis/build_v5_result_tables.py
 python scripts/figures/edge/plot_joint_ablation_metrics.py
 ```
 
+`build_v5_result_tables.py` 直接从正式评估输出重建 V5 稿件使用的七张 CSV 表，
+脚本中没有硬编码论文分数。
 当前正式表只使用 BIPED、严格 MultiCue 和严格 NYUDv2。重建旧 MultiCue 重合协议
 的脚本必须显式传入归档参数，不能用于正文主表。
 公开分支不跟踪任何已生成表格或图片。
@@ -110,7 +114,9 @@ python edge_model/train.py \
 ```
 
 MultiCue 使用 `edge_model/configs/rbcm/multicue_strict.yaml`，必须保持提供的严格
-划分。校准候选只能用验证集选择，测试集必须在候选冻结后才能读取。严格 MultiCue
+划分。校准候选只能用验证集选择，测试集必须在候选冻结后才能读取。`calibrate.py`
+默认只运行验证集选择；论文测试应把冻结候选 CSV 交给 `evaluate_generalization.py`。
+旧的组合入口只有显式传入 `--evaluate-test`，且候选文件完成哈希冻结后，才会读取测试集。严格 MultiCue
 和 NYUDv2 均只提供一个随机种子，因此论文不能声称这两项具有多 seed 统计显著性。
 
 ## 7. 复现 MEA 分析
@@ -129,6 +135,8 @@ python scripts/analysis/run_mea_pipeline.py
 Anchor 预测，再从正式 MEA 表、输入图像和验证集冻结候选计算 V5 源表：
 
 ```bash
+python scripts/figures/edge/generate_multicue_strict_pr_curves.py \
+  --checkpoint-root pretrained --device cuda
 python scripts/analysis/reproduce_figure5_relative_statistics.py \
   --candidate-csv pretrained/multicue_strict/calibration_candidates.csv
 python scripts/figures/bridge/render_figure5_relative_panels.py \

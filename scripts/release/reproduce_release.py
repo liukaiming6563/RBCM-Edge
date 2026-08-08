@@ -50,6 +50,8 @@ def main() -> None:
     if "tables" in stages:
         run("scripts/analysis/build_formal_result_index.py")
         run("scripts/analysis/build_strict_protocol_tables.py")
+        run("scripts/analysis/build_requested_cross_domain_report.py")
+        run("scripts/analysis/build_v5_result_tables.py")
     if "figures" in stages:
         run("scripts/figures/edge/plot_joint_ablation_metrics.py")
 

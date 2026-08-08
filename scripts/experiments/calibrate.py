@@ -3,11 +3,12 @@
 This script does not train or change a checkpoint. It treats an existing
 HED-lite checkpoint as center edge evidence and searches compact
 surround-to-center logit calibration parameters on an explicitly selected
-validation split. Paper-facing runs must freeze the selected candidates before
-the independent test split is read.
+validation split. Validation-only selection is the default. Test evaluation
+requires an explicit opt-in and starts only after the selected candidate table
+has been written and hashed.
 
 The goal is to compare a clean, validation-selected annular surround
-calibration with parameter-budget-matched calibration controls.
+calibration with trainable-capacity-matched, mode-specific calibration controls.
 """
 
 from __future__ import annotations
@@ -132,8 +133,17 @@ def parse_args() -> argparse.Namespace:
         "--selection-only",
         action="store_true",
         help=(
-            "Select and save candidates using validation data only. The test "
-            "dataset is not constructed or read in this mode."
+            "Explicitly request the default validation-only behavior. The test "
+            "dataset is not constructed or read."
+        ),
+    )
+    parser.add_argument(
+        "--evaluate-test",
+        action="store_true",
+        help=(
+            "After validation candidates have been written and hashed, read the "
+            "test split and evaluate those frozen candidates. Prefer the separate "
+            "evaluate_generalization.py command for paper-facing reproduction."
         ),
     )
     return parser.parse_args()
@@ -752,8 +762,10 @@ def save_predictions(
 
 def main() -> None:
     args = parse_args()
-    if args.selection_only and args.save_test_predictions:
-        raise ValueError("--save-test-predictions cannot be used with --selection-only")
+    if args.selection_only and args.evaluate_test:
+        raise ValueError("--selection-only and --evaluate-test are mutually exclusive")
+    if args.save_test_predictions and not args.evaluate_test:
+        raise ValueError("--save-test-predictions requires explicit --evaluate-test")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device(args.device if args.device == "cuda" and torch.cuda.is_available() else "cpu")
     checkpoint = load_checkpoint(args.checkpoint, map_location=device)
@@ -770,17 +782,6 @@ def main() -> None:
         device=device,
     )
     print(f"collected val samples: {len(val_samples)}", flush=True)
-    test_samples: list[dict[str, np.ndarray | str]] = []
-    if not args.selection_only:
-        test_samples = collect_samples(
-            model=model,
-            config=config,
-            dataset_name=dataset_name,
-            split=args.test_split,
-            device=device,
-        )
-        print(f"collected test samples: {len(test_samples)}", flush=True)
-
     baseline_val = metric_for_probs(
         [sample["prob"] for sample in val_samples],  # type: ignore[list-item]
         [sample["target"] for sample in val_samples],  # type: ignore[list-item]
@@ -796,7 +797,46 @@ def main() -> None:
         {"mode": "plain_identity", "split": "val", **baseline_val},
     ]
     baseline_test: dict[str, float] | None = None
-    if not args.selection_only:
+    selected: dict[str, dict[str, object]] = {}
+    selected_candidates: dict[str, Candidate] = {}
+    for mode in list(args.modes):
+        print(f"searching {mode}", flush=True)
+        best, best_val, refined = search_mode(val_samples, mode, args)
+        write_csv(args.output_dir / f"{mode}_val_top_refined.csv", refined)
+        # Full-resolution ring states can occupy several gigabytes.  They are
+        # no longer needed after validation has selected the fixed candidate.
+        clear_candidate_caches(val_samples)
+        selected_candidates[mode] = best
+        selected[mode] = {"candidate": asdict(best), "val": best_val, "test": None}
+        summary_rows.append({"mode": mode, "split": "val", **best_val})
+        print(
+            f"{mode}: val ODS={float(best_val['ODS']):.4f}, "
+            f"AP={float(best_val['AP']):.4f}; candidate frozen before test access",
+            flush=True,
+        )
+
+    summary_path = args.output_dir / "summary.csv"
+    frozen_path = args.output_dir / "frozen_candidates.csv"
+    write_csv(frozen_path, [row for row in summary_rows if row.get("split") == "val"])
+    frozen_hash = hashlib.sha256(frozen_path.read_bytes()).hexdigest()
+    (args.output_dir / "CANDIDATES_FROZEN.sha256").write_text(
+        f"{frozen_hash}  {frozen_path.as_posix()}\n",
+        encoding="ascii",
+    )
+
+    test_samples: list[dict[str, np.ndarray | str]] = []
+    if args.evaluate_test:
+        test_samples = collect_samples(
+            model=model,
+            config=config,
+            dataset_name=dataset_name,
+            split=args.test_split,
+            device=device,
+        )
+        print(
+            f"candidate hash frozen; collected test samples: {len(test_samples)}",
+            flush=True,
+        )
         baseline_test = metric_for_probs(
             [sample["prob"] for sample in test_samples],  # type: ignore[list-item]
             [sample["target"] for sample in test_samples],  # type: ignore[list-item]
@@ -809,51 +849,30 @@ def main() -> None:
             metric_backend=args.metric_backend,
         )
         summary_rows.append({"mode": "plain_identity", "split": "test", **baseline_test})
-    selected: dict[str, dict[str, object]] = {}
-    for mode in list(args.modes):
-        print(f"searching {mode}", flush=True)
-        best, best_val, refined = search_mode(val_samples, mode, args)
-        write_csv(args.output_dir / f"{mode}_val_top_refined.csv", refined)
-        # Full-resolution ring states can occupy several gigabytes.  They are
-        # no longer needed after validation has selected the fixed candidate.
-        clear_candidate_caches(val_samples)
-        test_row = None
-        if not args.selection_only:
-            test_row = evaluate_candidate(test_samples, best, args, apply_nms=True)
-        selected[mode] = {"candidate": asdict(best), "val": best_val, "test": test_row}
-        summary_rows.append({"mode": mode, "split": "val", **best_val})
-        if test_row is not None:
+        for mode, candidate in selected_candidates.items():
+            test_row = evaluate_candidate(test_samples, candidate, args, apply_nms=True)
+            selected[mode]["test"] = test_row
             summary_rows.append({"mode": mode, "split": "test", **test_row})
             print(
-                f"{mode}: val ODS={float(best_val['ODS']):.4f}, "
-                f"test ODS={float(test_row['ODS']):.4f}, AP={float(test_row['AP']):.4f}",
+                f"{mode}: frozen test ODS={float(test_row['ODS']):.4f}, "
+                f"AP={float(test_row['AP']):.4f}",
                 flush=True,
             )
-        else:
-            print(
-                f"{mode}: val ODS={float(best_val['ODS']):.4f}, "
-                f"AP={float(best_val['AP']):.4f}; test not read",
-                flush=True,
-            )
-        if args.save_test_predictions and test_row is not None:
-            save_predictions(test_samples, best, args.output_dir / "predictions" / mode)
-        if test_samples:
+            if args.save_test_predictions:
+                save_predictions(
+                    test_samples,
+                    candidate,
+                    args.output_dir / "predictions" / mode,
+                )
             clear_candidate_caches(test_samples)
 
-    summary_path = args.output_dir / "summary.csv"
-    frozen_path = args.output_dir / "frozen_candidates.csv"
     write_csv(summary_path, summary_rows)
-    write_csv(frozen_path, [row for row in summary_rows if row.get("split") == "val"])
-    frozen_hash = hashlib.sha256(frozen_path.read_bytes()).hexdigest()
-    (args.output_dir / "CANDIDATES_FROZEN.sha256").write_text(
-        f"{frozen_hash}  {frozen_path.as_posix()}\n",
-        encoding="ascii",
-    )
     report = {
         "dataset_name": dataset_name,
-        "selection_only": bool(args.selection_only),
+        "selection_only": not bool(args.evaluate_test),
+        "test_evaluation_explicitly_requested": bool(args.evaluate_test),
         "val_split": args.val_split,
-        "test_split": None if args.selection_only else args.test_split,
+        "test_split": args.test_split if args.evaluate_test else None,
         "checkpoint": str(args.checkpoint),
         "config": str(args.config),
         "val_count": len(val_samples),

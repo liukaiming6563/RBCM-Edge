@@ -209,7 +209,10 @@ def external_tables(
         row
         for row in formal
         if row["mode"] == "main_surround"
-        and row["evaluation_status"] == "original_validation_frozen_strategy"
+        and row["evaluation_status"] in {
+            "original_validation_frozen_strategy",
+            "manuscript_v5_frozen_strategy",
+        }
     ]
 
     cross_rows: list[dict[str, Any]] = []
